@@ -1,0 +1,124 @@
+:root {
+  --font-display: "Syne", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Uniswap-like dark DEX chrome */
+  --ink: #ffffff;
+  --ink-soft: #d1d5e0;
+  --fog: #c8cdd8;
+  --paper: #131313;
+  --mute: #98a1c0;
+  --line: rgba(255, 255, 255, 0.08);
+  --surface: #1b1b1b;
+  --surface-2: #232323;
+  --surface-elevated: #1f1f1f;
+
+  --accent: #fc72ff;
+  --accent-dim: rgba(252, 114, 255, 0.14);
+  --accent-strong: #ff007a;
+
+  --live: #fc72ff;
+  --live-dim: rgba(252, 114, 255, 0.14);
+  --warn: #ff684b;
+  --warn-dim: rgba(255, 104, 75, 0.14);
+  --ok: #40b66b;
+  --ok-dim: rgba(64, 182, 107, 0.14);
+
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-xs: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  background:
+    radial-gradient(900px 480px at 12% -8%, rgba(252, 114, 255, 0.16), transparent 55%),
+    radial-gradient(800px 420px at 92% 0%, rgba(255, 0, 122, 0.1), transparent 50%),
+    radial-gradient(700px 500px at 50% 100%, rgba(64, 182, 107, 0.05), transparent 45%),
+    linear-gradient(180deg, #0d0d0d 0%, var(--paper) 40%, #101010 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 25%, transparent 72%);
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+.rise {
+  animation: rise 0.45s ease both;
+}
+
+.pulse {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes flash-warn {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: rgba(255, 104, 75, 0.1);
+  }
+}
+
+main.is-revoked {
+  animation: flash-warn 0.7s ease;
+}
