@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { useAccount, useConnect, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
+import { maxUint256 } from "viem";
+import {
+  useAccount,
+  useConnect,
+  useReadContract,
+  useReadContracts,
+  useSignMessage,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { operatorRegistryAbi } from "@/lib/chain/abi";
 import { somniaShannon, wagmiConfig } from "@/lib/chain/config";
@@ -16,7 +25,9 @@ import {
   PLACE_ORDER_FOR,
   REDUCE_ORDER_FOR,
   SESSION_ADDRESS,
+  SOMI_USDSO_POOL,
 } from "@/lib/chain/constants";
+import { erc20Abi, poolAbi } from "@/lib/chain/pool-abi";
 import { shortAddress } from "@/lib/desk/round";
 
 export function useHouseDesk() {
@@ -28,6 +39,7 @@ export function useHouseDesk() {
   const { connectAsync, connectors, isPending: connecting } = useConnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync, isPending: writing } = useWriteContract();
+  const { signMessageAsync } = useSignMessage();
 
   const isHouseOwner =
     !!address && !!houseOwner && address.toLowerCase() === houseOwner.toLowerCase();
@@ -62,6 +74,15 @@ export function useHouseDesk() {
     },
   });
 
+  const poolParams = useReadContract({
+    address: SOMI_USDSO_POOL,
+    abi: poolAbi,
+    functionName: "getPoolParams",
+    query: { enabled: chainEnabled },
+  });
+
+  const quoteToken = poolParams.data?.[1];
+
   const approved = useMemo(() => {
     if (!chainEnabled) return undefined;
     const results = approvalReads.data;
@@ -73,7 +94,7 @@ export function useHouseDesk() {
   const ownerLabel = houseOwner ? shortAddress(houseOwner) : FALLBACK_OWNER_LABEL;
   const sessionLabel = session ? shortAddress(session) : FALLBACK_SESSION_LABEL;
 
-  const connectOwner = useCallback(async () => {
+  const connectWallet = useCallback(async () => {
     const connector = connectors.find((c) => c.id === "injected") ?? connectors[0];
     if (!connector) throw new Error("No wallet found");
     let nextAddress = address;
@@ -112,6 +133,27 @@ export function useHouseDesk() {
   const grantSession = useCallback(() => setApproval(true), [setApproval]);
   const revokeDesk = useCallback(() => setApproval(false), [setApproval]);
 
+  const signVote = useCallback(
+    async (message: string) => {
+      return signMessageAsync({ message });
+    },
+    [signMessageAsync],
+  );
+
+  const approveUsdso = useCallback(async () => {
+    if (!isHouseOwner) throw new Error("Connect the house owner wallet");
+    if (!quoteToken) throw new Error("Quote token not loaded");
+    const hash = await writeContractAsync({
+      address: quoteToken,
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [SOMI_USDSO_POOL, maxUint256],
+      chainId: somniaShannon.id,
+    });
+    await waitForTransactionReceipt(wagmiConfig, { hash });
+    return hash;
+  }, [isHouseOwner, quoteToken, writeContractAsync]);
+
   return {
     chainEnabled,
     houseOwner,
@@ -125,9 +167,12 @@ export function useHouseDesk() {
     approved,
     connecting,
     writing,
-    connectOwner,
+    quoteToken,
+    connectWallet,
     grantSession,
     revokeDesk,
+    signVote,
+    approveUsdso,
     refetchApproval: approvalReads.refetch,
   };
 }

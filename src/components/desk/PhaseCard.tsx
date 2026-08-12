@@ -4,10 +4,12 @@ export function PhaseCard({
   phase,
   wrongOwner,
   chainEnabled,
+  hideBlocked,
 }: {
   phase: Phase;
   wrongOwner: boolean;
   chainEnabled: boolean;
+  hideBlocked?: boolean;
 }) {
   if (phase === "voting" || phase === "resolving" || phase === "signing" || phase === "scored") {
     return null;
@@ -41,12 +43,16 @@ export function PhaseCard({
         <p>
           {phase === "boot"
             ? chainEnabled
-              ? "Connect the house owner wallet on Somnia Shannon, then grant a session key."
+              ? "Connect a wallet. The house owner grants the session key; anyone can vote once the desk is armed."
               : "Connect the cold wallet that keeps custody, then grant a session key."
             : "Next: grant place + cancel + reduce to a hot session key."}
         </p>
       </div>
     );
+  }
+
+  if (phase === "blocked" && hideBlocked) {
+    return null;
   }
 
   if (phase === "revoked" || phase === "blocked") {

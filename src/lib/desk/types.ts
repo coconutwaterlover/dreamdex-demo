@@ -35,3 +35,18 @@ export type DeskView = {
   revoked: boolean;
   live: boolean;
 };
+
+export type RoundBallot = { address: string; vote: Vote };
+
+export type RoundSnapshot = {
+  id: number | null;
+  status: "idle" | "voting" | "resolving" | "scored" | "blocked";
+  endsAt: number | null;
+  remaining: number;
+  tally: VoteTally;
+  ballots: RoundBallot[];
+  winner: Vote | null;
+  txHash: string | null;
+  error: string | null;
+  mid: number;
+};
