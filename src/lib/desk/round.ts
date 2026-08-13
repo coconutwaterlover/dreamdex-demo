@@ -1,6 +1,6 @@
 import type { Vote, VoteTally, Voter } from "./types";
 
-/** Demo compresses 5:00 → 60s */
+/** Demo compresses 5:00 → 60s, scheduled on-chain via Somnia Reactivity */
 export const ROUND_SECONDS = 60;
 export const INITIAL_MID = 0.0875;
 export const MOCK_TX = "0xf3a91c…8e2b";

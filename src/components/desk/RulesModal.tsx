@@ -38,10 +38,10 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             ballot per wallet.
           </p>
           <p>
-            When the clock hits zero, the <strong>majority vote is the move</strong>. That
-            instruction is carried out by a delegated session key the owner already granted
-            — a <code>placeOrderFor</code> call on the owner’s behalf. The hot key can place,
-            cancel, and reduce. It cannot withdraw.
+            When Somnia <strong>Reactivity</strong> fires the scheduled callback, the{" "}
+            <strong>majority vote is the move</strong>. That instruction is carried out by a
+            delegated session key the owner already granted — a <code>placeOrderFor</code> call
+            on the owner’s behalf. The hot key can place, cancel, and reduce. It cannot withdraw.
           </p>
           <ul>
             <li>
@@ -52,6 +52,27 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
               <strong>Hold</strong>, a tie, or no votes → no delegation call. The book stays
               put.
             </li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>Who ends the round?</h3>
+          <p>
+            Nobody does. Opening a round registers a one-shot{" "}
+            <strong>Somnia Reactivity</strong> subscription on the reactivity precompile at{" "}
+            <code>0x0100</code> — a <code>Schedule</code> system event set for the round’s
+            deadline.
+          </p>
+          <p>
+            Validators hold that subscription in chain state. In the first block whose
+            timestamp passes the deadline, they insert a synthetic transaction calling{" "}
+            <code>onEvent</code> on the desk’s <code>RoundClock</code> handler, then delete
+            the subscription. The desk sees that callback and executes the majority vote.
+          </p>
+          <ul>
+            <li>No cron job, no keeper bot, no browser tab holding the clock</li>
+            <li>The countdown above only mirrors the deadline already committed on-chain</li>
+            <li>The session key owns the subscription and pays gas for its own callback</li>
           </ul>
         </section>
 

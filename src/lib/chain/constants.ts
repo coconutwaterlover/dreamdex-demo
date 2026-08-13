@@ -17,6 +17,7 @@ export const SHANNON_EXPLORER = "https://shannon-explorer.somnia.network";
 
 export const HOUSE_OWNER_ADDRESS = process.env.NEXT_PUBLIC_HOUSE_OWNER_ADDRESS as Address | undefined;
 export const SESSION_ADDRESS = process.env.NEXT_PUBLIC_SESSION_ADDRESS as Address | undefined;
+export const ROUND_CLOCK_ADDRESS = process.env.NEXT_PUBLIC_ROUND_CLOCK_ADDRESS as Address | undefined;
 export const SOMNIA_RPC_URL = process.env.NEXT_PUBLIC_SOMNIA_RPC_URL ?? DEFAULT_RPC;
 export const DREAMDEX_API_URL = process.env.DREAMDEX_API_URL ?? DEFAULT_DREAMDEX_API;
 
@@ -25,6 +26,10 @@ export const FALLBACK_SESSION_LABEL = "0x7Bc1…D04a";
 
 export function isChainConfigured(): boolean {
   return isHexAddress(HOUSE_OWNER_ADDRESS) && isHexAddress(SESSION_ADDRESS);
+}
+
+export function isRoundClockConfigured(): boolean {
+  return isHexAddress(ROUND_CLOCK_ADDRESS);
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000";

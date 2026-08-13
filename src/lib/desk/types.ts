@@ -49,4 +49,6 @@ export type RoundSnapshot = {
   txHash: string | null;
   error: string | null;
   mid: number;
+  subscriptionId: string | null;
+  scheduleTxHash: string | null;
 };

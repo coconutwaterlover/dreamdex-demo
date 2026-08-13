@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy:clock": "node scripts/deploy-round-clock.mjs"
   },
   "dependencies": {
+    "@somnia-chain/reactivity": "^0.2.1",
     "@tanstack/react-query": "^5.101.4",
     "next": "^15.5.2",
     "react": "^19.1.1",
@@ -17,9 +19,11 @@
     "wagmi": "^3.7.6"
   },
   "devDependencies": {
+    "@somnia-chain/reactivity-contracts": "^0.2.1",
     "@types/node": "^22.17.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "solc": "^0.8.36",
     "typescript": "^5.9.2"
   }
 }

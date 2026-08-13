@@ -1,6 +1,6 @@
 # DreamDesk — Swarm Desk (Day 2)
 
-House-funded desk on Somnia Shannon: the owner grants a session key on-chain, wallets sign Bid / Ask / Hold each round, and the server-held session key calls `placeOrderFor`.
+House-funded desk on Somnia Shannon: the owner grants a session key on-chain, wallets sign Bid / Ask / Hold each round, and Somnia Reactivity fires the round end so the server-held session key can call `placeOrderFor`.
 
 ## Run locally
 
@@ -17,19 +17,26 @@ Without owner/session addresses the UI stays in theater mode. **Play demo** neve
 
 1. Create two EOAs: **owner** (cold) and **session** (hot). Put both *addresses* in `.env.local`. Put the session **private key** in `SESSION_PRIVATE_KEY` (server only).
 2. Fund the **owner** with testnet gas and USDso. After connecting as owner, click **Approve USDso** so the pool can auto-pull on Bids.
-3. Fund the **session** with STT for gas. Asks sell native SOMI, so the session also needs a little native for `msg.value` (credited to the owner).
-4. Add Shannon (chain ID `50312`, RPC `https://api.infra.testnet.somnia.network`) in the wallet.
-5. Connect the **house owner**, **Grant session key** (`setOperatorApprovalGlobal` on `0x15C7…F20A`).
-6. Anyone with a wallet can **Open next 5-min round** (once armed) and sign one vote. Clock zero → session key `placeOrderFor` (PostOnly, min lot) or Hold.
-7. **Revoke desk** wipes the grant. The next resolve should fail `OnlyApprovedContracts`.
+3. Fund the **session** with STT for gas **and at least 32 STT** (Reactivity sybil threshold to create a Schedule subscription). Asks sell native SOMI, so the session also needs a little extra native for `msg.value` (credited to the owner).
+4. Deploy the round-end handler once, then paste the address:
+
+   ```bash
+   npm run deploy:clock
+   # add NEXT_PUBLIC_ROUND_CLOCK_ADDRESS=0x… to .env.local
+   ```
+
+5. Add Shannon (chain ID `50312`, RPC `https://api.infra.testnet.somnia.network`) in the wallet.
+6. Connect the **house owner**, **Grant session key** (`setOperatorApprovalGlobal` on `0x15C7…F20A`).
+7. Anyone with a wallet can **Open next 5-min round** (once armed) and sign one vote. Opening the round calls `scheduleSubscriptionAtTimestamp` on the reactivity precompile (`0x0100`). When that one-shot fires, `RoundClock.onEvent` runs and the session key `placeOrderFor` (PostOnly, min lot) or Hold.
+8. **Revoke desk** wipes the grant. The next resolve should fail `OnlyApprovedContracts`.
 
 Votes are 1-per-wallet in memory on this Node process (not shared across Vercel instances).
 
 ## Demo flow
 
 1. Connect owner → grant session key (on-chain) → approve USDso
-2. Open round → connect any wallet → sign Bid / Ask / Hold
-3. Clock hits zero → session key `placeOrderFor` (or Hold)
+2. Open round → Reactivity schedules the window → connect any wallet → sign Bid / Ask / Hold
+3. On-chain callback fires → session key `placeOrderFor` (or Hold)
 4. Leaderboard updates (± points, still Day-1 stub scoring)
 5. Revoke desk → next execute blocked
 

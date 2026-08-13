@@ -33,6 +33,13 @@ type HouseActions = {
   signVote: (message: string) => Promise<`0x${string}`>;
 };
 
+export type DeskSchedule = {
+  subscriptionId: string | null;
+  scheduleTxHash: string | null;
+};
+
+const NO_SCHEDULE: DeskSchedule = { subscriptionId: null, scheduleTxHash: null };
+
 function ballotsToVoters(ballots: RoundSnapshot["ballots"], you?: string): Voter[] {
   return ballots.map((b) => ({
     id: b.address.toLowerCase(),
@@ -60,6 +67,7 @@ export function useDeskRound(house: HouseActions) {
   const [executeHash, setExecuteHash] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [liveBallots, setLiveBallots] = useState<RoundSnapshot["ballots"]>([]);
+  const [schedule, setSchedule] = useState<DeskSchedule>(NO_SCHEDULE);
   const stopRef = useRef(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const crowdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -67,6 +75,7 @@ export function useDeskRound(house: HouseActions) {
   const autoplayingRef = useRef(false);
   const scoredRef = useRef<number | null>(null);
   const resolvingRef = useRef(false);
+  const waitingReactivityRef = useRef(false);
 
   const [tape, setTape] = useState<TapeItem[]>([
     { id: "t0", t: "00:00", label: "Desk cold — grant a hot key to open Swarm", tone: "neutral" },
@@ -101,11 +110,12 @@ export function useDeskRound(house: HouseActions) {
 
   useEffect(() => {
     if (!liveMode) return;
-    if (!house.address) {
+    const you = house.address;
+    if (!you) {
       setMyVote(null);
       return;
     }
-    const mine = liveBallots.find((b) => b.address.toLowerCase() === house.address.toLowerCase());
+    const mine = liveBallots.find((b) => b.address.toLowerCase() === you.toLowerCase());
     setMyVote(mine?.vote ?? null);
   }, [house.address, liveBallots, liveMode]);
 
@@ -211,6 +221,9 @@ export function useDeskRound(house: HouseActions) {
       setVotes(snap.tally);
       setWinner(snap.winner);
       setLiveBallots(snap.ballots);
+      if (snap.subscriptionId || snap.scheduleTxHash) {
+        setSchedule({ subscriptionId: snap.subscriptionId, scheduleTxHash: snap.scheduleTxHash });
+      }
       if (snap.status === "voting") {
         setPhase("voting");
         setSecs(snap.remaining);
@@ -325,6 +338,7 @@ export function useDeskRound(house: HouseActions) {
     setExecuteHash(null);
     setExecuteError(null);
     setLiveBallots([]);
+    setSchedule(NO_SCHEDULE);
     setRoundMid(mid);
     setVoters((list) =>
       list.map((u) => ({
@@ -376,13 +390,19 @@ export function useDeskRound(house: HouseActions) {
         clearTimers();
         scoredRef.current = null;
         resolvingRef.current = false;
+        waitingReactivityRef.current = false;
+        setSchedule(NO_SCHEDULE);
         const snap = await openRoundApi();
         setRoundMid(snap.mid || mid);
         setExecuteHash(null);
         setExecuteError(null);
         setSignProgress(0);
         log(`Round ${snap.id} open — Bid / Ask / Hold (signed 1p1v)`, "live");
+        if (snap.scheduleTxHash) {
+          log(`Reactivity scheduled round end · ${snap.scheduleTxHash}`, "ok");
+        }
         await applyLiveSnapshot(snap);
+        waitingReactivityRef.current = false;
         pollRef.current = setInterval(() => {
           void pollLive();
         }, 1000);
@@ -409,20 +429,9 @@ export function useDeskRound(house: HouseActions) {
         if (snap.remaining > 0) return;
         setPhase("resolving");
         setBusy(true);
-        if (resolvingRef.current) return;
-        resolvingRef.current = true;
-        try {
-          const resolved = await resolveRoundApi();
-          if (resolved.status === "voting") {
-            resolvingRef.current = false;
-            return;
-          }
-          clearTimers();
-          await applyLiveSnapshot(resolved);
-        } catch (err) {
-          resolvingRef.current = false;
-          log(err instanceof Error ? err.message : "Resolve failed", "warn");
-          setBusy(false);
+        if (!waitingReactivityRef.current) {
+          waitingReactivityRef.current = true;
+          log("Waiting for Somnia Reactivity callback…", "live");
         }
         return;
       }
@@ -555,12 +564,14 @@ export function useDeskRound(house: HouseActions) {
     setExecuteHash(null);
     setExecuteError(null);
     setLiveBallots([]);
+    setSchedule(NO_SCHEDULE);
     setRound(0);
     roundRef.current = 0;
     setMid(INITIAL_MID);
     setRoundMid(INITIAL_MID);
     setVoters(cloneSeedVoters());
     scoredRef.current = null;
+    waitingReactivityRef.current = false;
     setTape([{ id: "t-reset", t: stamp(), label: "Desk cold", tone: "neutral" }]);
     if (house.approved) setPhase("armed");
     else if (house.ownerConnected && house.isHouseOwner) setPhase("connected");
@@ -665,6 +676,7 @@ export function useDeskRound(house: HouseActions) {
     executeHash,
     executeError,
     liveBallots,
+    schedule,
     voters,
     round,
     tape,

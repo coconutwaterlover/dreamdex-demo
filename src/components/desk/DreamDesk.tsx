@@ -102,6 +102,7 @@ export function DreamDesk() {
             executeHash={desk.executeHash}
             executeError={desk.executeError}
             liveBallots={desk.liveBallots}
+            schedule={desk.schedule}
             voters={desk.voters}
             youId={house.address}
             onVote={desk.castVote}

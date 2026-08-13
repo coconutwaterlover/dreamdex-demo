@@ -1,3 +1,4 @@
+import type { DeskSchedule } from "@/hooks/useDeskRound";
 import { SHANNON_EXPLORER } from "@/lib/chain/constants";
 import { ROUND_SECONDS, shortAddress } from "@/lib/desk/round";
 import type { Phase, RoundBallot, Vote, VoteTally, Voter } from "@/lib/desk/types";
@@ -6,6 +7,40 @@ const TX_HASH = /^0x[a-fA-F0-9]{64}$/;
 
 function txHref(hash: string): string | null {
   return TX_HASH.test(hash) ? `${SHANNON_EXPLORER}/tx/${hash}` : null;
+}
+
+function ReactivityStrip({
+  schedule,
+  fired,
+  onOpenRules,
+}: {
+  schedule: DeskSchedule;
+  fired: boolean;
+  onOpenRules?: () => void;
+}) {
+  const href = schedule.scheduleTxHash ? txHref(schedule.scheduleTxHash) : null;
+
+  return (
+    <div className={`reactivity ${fired ? "fired" : "armed"}`}>
+      <span className="reactivity-dot" aria-hidden />
+      <span className="reactivity-label">
+        {fired
+          ? "Reactivity fired — chain ended the round"
+          : "Round end scheduled on-chain — no keeper, no cron"}
+      </span>
+      {schedule.subscriptionId && <code>sub #{schedule.subscriptionId}</code>}
+      {href && (
+        <a href={href} target="_blank" rel="noreferrer">
+          subscribe tx
+        </a>
+      )}
+      {onOpenRules && (
+        <button type="button" className="rules-link" onClick={onOpenRules}>
+          What is Reactivity?
+        </button>
+      )}
+    </div>
+  );
 }
 
 function yourCall(myVote: Vote | null, winner: Vote): string {
@@ -50,6 +85,7 @@ export function RoundPanel({
   executeHash,
   executeError,
   liveBallots,
+  schedule,
   voters,
   youId,
   onVote,
@@ -72,6 +108,7 @@ export function RoundPanel({
   executeHash: string | null;
   executeError: string | null;
   liveBallots: RoundBallot[];
+  schedule: DeskSchedule;
   voters: Voter[];
   youId?: string;
   onVote: (v: Vote) => void;
@@ -117,10 +154,19 @@ export function RoundPanel({
           {phase === "voting" ? clock : hasOutcome ? "ended" : "resolving"}
         </span>
       </div>
+      {liveMode && (schedule.subscriptionId || schedule.scheduleTxHash) && (
+        <ReactivityStrip
+          schedule={schedule}
+          fired={phase !== "voting"}
+          onOpenRules={onOpenRules}
+        />
+      )}
       {!hasOutcome && (
         <p className="hint">
           {liveMode
-            ? "Signed 1 vote per wallet. Demo clock compresses 5:00 → " + ROUND_SECONDS + "s"
+            ? "Signed 1 vote per wallet. Round end is scheduled on-chain with Somnia Reactivity (" +
+              ROUND_SECONDS +
+              "s demo window)"
             : `Demo clock compresses 5:00 → ${ROUND_SECONDS}s`}
           {onOpenRules && (
             <>

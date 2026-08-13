@@ -4,6 +4,7 @@ import { ROUND_SECONDS, tallyWinner } from "@/lib/desk/round";
 import type { RoundSnapshot, Vote, VoteTally } from "@/lib/desk/types";
 import { executeResolvedVote } from "./execute";
 import { fetchMarketQuote } from "./market";
+import { reactivityHasFired, scheduleRoundEnd, watchRoundFired } from "./reactivity";
 import { getPublicClient } from "./session";
 
 export type RoundStatus = RoundSnapshot["status"];
@@ -17,21 +18,31 @@ type StoredRound = {
   winner: Vote | null;
   txHash: string | null;
   error: string | null;
+  subscriptionId: bigint | null;
+  scheduleTxHash: string | null;
+  fireCountAtOpen: bigint;
 };
 
 type RoundStore = {
   seq: number;
   current: StoredRound | null;
   resolveLock: Promise<RoundSnapshot> | null;
+  unwatch: (() => void) | null;
 };
 
 const g = globalThis as typeof globalThis & { __dreamdeskRounds?: RoundStore };
 
 function store(): RoundStore {
   if (!g.__dreamdeskRounds) {
-    g.__dreamdeskRounds = { seq: 0, current: null, resolveLock: null };
+    g.__dreamdeskRounds = { seq: 0, current: null, resolveLock: null, unwatch: null };
   }
   return g.__dreamdeskRounds;
+}
+
+function stopWatcher() {
+  const s = store();
+  s.unwatch?.();
+  s.unwatch = null;
 }
 
 function tallyOf(votes: Map<string, Vote>): VoteTally {
@@ -58,6 +69,8 @@ async function snapshot(round: StoredRound | null): Promise<RoundSnapshot> {
       txHash: null,
       error: null,
       mid: quote.last,
+      subscriptionId: null,
+      scheduleTxHash: null,
     };
   }
   return {
@@ -71,11 +84,27 @@ async function snapshot(round: StoredRound | null): Promise<RoundSnapshot> {
     txHash: round.txHash,
     error: round.error,
     mid: quote.last,
+    subscriptionId: round.subscriptionId?.toString() ?? null,
+    scheduleTxHash: round.scheduleTxHash,
   };
 }
 
+async function roundIsDue(round: StoredRound): Promise<boolean> {
+  if (round.status !== "voting") return false;
+  if (Date.now() + 2000 < round.endsAt) return false;
+  return reactivityHasFired({
+    subscriptionId: round.subscriptionId,
+    fireCountAtOpen: round.fireCountAtOpen,
+    endsAt: round.endsAt,
+  });
+}
+
 export async function getRoundSnapshot(): Promise<RoundSnapshot> {
-  return snapshot(store().current);
+  const current = store().current;
+  if (current?.status === "voting" && (await roundIsDue(current))) {
+    return resolveRound();
+  }
+  return snapshot(current);
 }
 
 export async function deskIsArmed(): Promise<boolean> {
@@ -91,28 +120,38 @@ export async function deskIsArmed(): Promise<boolean> {
 
 export async function openRound(): Promise<RoundSnapshot> {
   const s = store();
-  if (s.current?.status === "voting" && Date.now() < s.current.endsAt) {
-    return snapshot(s.current);
-  }
-  if (s.current?.status === "voting" && Date.now() >= s.current.endsAt) {
-    await resolveRound();
+  if (s.current?.status === "voting") {
+    if (await roundIsDue(s.current)) {
+      await resolveRound();
+    } else {
+      return snapshot(s.current);
+    }
   }
   const armed = await deskIsArmed();
   if (!armed) {
     throw new Error("Desk is not armed on-chain");
   }
-  s.seq += 1;
   const openedAt = Date.now();
+  const endsAt = openedAt + ROUND_SECONDS * 1000;
+  const scheduled = await scheduleRoundEnd(endsAt);
+  stopWatcher();
+  s.seq += 1;
   s.current = {
     id: s.seq,
     status: "voting",
     openedAt,
-    endsAt: openedAt + ROUND_SECONDS * 1000,
+    endsAt,
     votes: new Map(),
     winner: null,
     txHash: null,
     error: null,
+    subscriptionId: scheduled.subscriptionId,
+    scheduleTxHash: scheduled.txHash,
+    fireCountAtOpen: scheduled.fireCount,
   };
+  s.unwatch = watchRoundFired(() => {
+    void resolveRound().catch((err) => console.error("[reactivity]", err));
+  });
   return snapshot(s.current);
 }
 
@@ -135,6 +174,8 @@ export function castBallot(roundId: number, address: string, vote: Vote): RoundS
     txHash: current.txHash,
     error: current.error,
     mid: 0,
+    subscriptionId: current.subscriptionId?.toString() ?? null,
+    scheduleTxHash: current.scheduleTxHash,
   };
 }
 
@@ -146,13 +187,15 @@ export async function resolveRound(): Promise<RoundSnapshot> {
       const current = s.current;
       if (!current) throw new Error("No round to resolve");
       if (current.status === "scored" || current.status === "blocked") return snapshot(current);
-      if (current.status === "voting" && Date.now() < current.endsAt) {
-        return snapshot(current);
+      if (current.status === "voting") {
+        const due = await roundIsDue(current);
+        if (!due && Date.now() < current.endsAt) return snapshot(current);
       }
       if (current.txHash) {
         current.status = "scored";
         return snapshot(current);
       }
+      stopWatcher();
       current.status = "resolving";
       const winner = current.votes.size === 0 ? "hold" : tallyWinner(tallyOf(current.votes));
       current.winner = winner;
