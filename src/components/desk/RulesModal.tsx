@@ -30,86 +30,67 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           </button>
         </div>
 
-        <section>
-          <h3>Social dynamic</h3>
-          <p>
-            The house owner keeps the funds. Visitors never touch them. They only vote{" "}
-            <strong>Bid</strong>, <strong>Ask</strong>, or <strong>Hold</strong> — one signed
-            ballot per wallet. Ballots stay <strong>blind</strong> while the window is open:
-            nobody sees the running tally or anyone else’s choice until the round ends.
-          </p>
-          <p>
-            When Somnia <strong>Reactivity</strong> fires the scheduled callback, the{" "}
-            <strong>majority vote is the move</strong>. That instruction is carried out by a
-            delegated session key the owner already granted — a <code>placeOrderFor</code> call
-            on the owner’s behalf. The hot key can place, cancel, and reduce. It cannot withdraw.
-          </p>
-          <ul>
-            <li>
-              <strong>Bid</strong> or <strong>Ask</strong> plurality → session key posts a
-              PostOnly order on that side.
-            </li>
-            <li>
-              <strong>Hold</strong>, a tie, or no votes → no delegation call. The book stays
-              put.
-            </li>
-          </ul>
-        </section>
+        <div className="modal-body">
+          <section>
+            <h3>Vote</h3>
+            <p>
+              Owner keeps the funds. Visitors vote <strong>Bid</strong>, <strong>Ask</strong>, or{" "}
+              <strong>Hold</strong> — one signed ballot each. Ballots stay <strong>blind</strong>{" "}
+              until the round ends.
+            </p>
+            <p>
+              Majority is the move. A granted session key runs <code>placeOrderFor</code>. It can
+              place, cancel, reduce — not withdraw.
+            </p>
+            <ul>
+              <li>
+                <strong>Bid</strong> or <strong>Ask</strong> plurality → PostOnly on that side
+              </li>
+              <li>
+                <strong>Hold</strong>, a tie, or no votes → no order
+              </li>
+            </ul>
+          </section>
 
-        <section>
-          <h3>Who ends the round?</h3>
-          <p>
-            Nobody does. Opening a round registers a one-shot{" "}
-            <strong>Somnia Reactivity</strong> subscription on the reactivity precompile at{" "}
-            <code>0x0100</code> — a <code>Schedule</code> system event set for the round’s
-            deadline.
-          </p>
-          <p>
-            Validators hold that subscription in chain state. In the first block whose
-            timestamp passes the deadline, they insert a synthetic transaction calling{" "}
-            <code>onEvent</code> on the desk’s <code>RoundClock</code> handler, then delete
-            the subscription. The desk sees that callback and executes the majority vote.
-          </p>
-          <ul>
-            <li>No cron job, no keeper bot, no browser tab holding the clock</li>
-            <li>The countdown above only mirrors the deadline already committed on-chain</li>
-            <li>The session key owns the subscription and pays gas for its own callback</li>
-          </ul>
-        </section>
+          <section>
+            <h3>Who ends the round?</h3>
+            <p>
+              Somnia <strong>Reactivity</strong>. Opening a round schedules a one-shot callback at{" "}
+              <code>0x0100</code>. Validators fire <code>RoundClock.onEvent</code> at the deadline —
+              no cron, no keeper. The countdown just mirrors that.
+            </p>
+          </section>
 
-        <section>
-          <h3>Your call vs the stall</h3>
-          <p>
-            You score for reading the room — matching the majority — not for PnL (yet).
-          </p>
-          <ul>
-            <li>
-              Same side as the majority: <strong className="up">+10</strong>
-            </li>
-            <li>
-              Opposite side (Bid vs Ask): <strong className="down">−6</strong>
-            </li>
-            <li>You held while they traded: 0</li>
-            <li>
-              Stall held: everyone who voted gets <strong className="up">+2</strong>
-            </li>
-          </ul>
-        </section>
+          <section>
+            <h3>Scoring</h3>
+            <p>You score for matching the majority, not PnL.</p>
+            <ul>
+              <li>
+                Match: <strong className="up">+10</strong>
+              </li>
+              <li>
+                Opposite (Bid vs Ask): <strong className="down">−6</strong>
+              </li>
+              <li>You held, they traded: 0</li>
+              <li>
+                Stall held: <strong className="up">+2</strong> for everyone who voted
+              </li>
+            </ul>
+          </section>
 
-        <section>
-          <h3>Soulbound badges</h3>
-          <p>
-            The live leaderboard is an on-chain NFT collection. First time you score a round, the
-            session key mints one soulbound badge with the name you picked and a tropical fruit
-            (pixel art, one of eight). Later rounds only update that token’s score — you never get
-            a second mint.
-          </p>
-        </section>
+          <section>
+            <h3>Badges</h3>
+            <p>
+              First scored round mints one soulbound fruit badge with your name. Later rounds only
+              update that token’s score.
+            </p>
+          </section>
 
-        <p className="modal-note">
-          Revoke the grant and the next majority still votes — but the delegation call
-          dies. Mark-to-mid scoring is Day 3.
-        </p>
+          <p className="modal-note">
+            Revoke the grant and the next majority still votes — but the order dies. Mark-to-mid
+            scoring is Day 3.
+          </p>
+        </div>
 
         <button type="button" className="primary modal-ok" onClick={onClose}>
           Got it
