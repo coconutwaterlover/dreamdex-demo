@@ -26,7 +26,10 @@ function fromBook(bids: { price: unknown; quantity?: unknown }[], asks: { price:
 
 async function fetchHttpQuote(): Promise<MarketQuote | null> {
   try {
-    const bookRes = await fetch(`${DREAMDEX_API_URL}/orderbooks?symbols=SOMI:USDso&depth=1`, { cache: "no-store" });
+    const bookRes = await fetch(`${DREAMDEX_API_URL}/orderbooks?symbols=SOMI:USDso&depth=1`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(1200),
+    });
     if (bookRes.ok) {
       const data = (await bookRes.json()) as {
         orderbooks?: { bids?: { price: string }[]; asks?: { price: string }[] }[];
@@ -39,7 +42,10 @@ async function fetchHttpQuote(): Promise<MarketQuote | null> {
     // fall through
   }
   try {
-    const tickerRes = await fetch(`${DREAMDEX_API_URL}/tickers?symbols=SOMI:USDso`, { cache: "no-store" });
+    const tickerRes = await fetch(`${DREAMDEX_API_URL}/tickers?symbols=SOMI:USDso`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(1200),
+    });
     if (tickerRes.ok) {
       const data = (await tickerRes.json()) as { symbols?: { close?: string }[] };
       const close = num(data.symbols?.[0]?.close);
@@ -70,20 +76,33 @@ export async function fetchOnChainBook(depth = 1): Promise<{ bids: { price: bigi
   return { bids: [...bids], asks: [...asks] };
 }
 
+const QUOTE_TTL_MS = 2500;
+let quoteCache: { at: number; quote: MarketQuote } | null = null;
+
 export async function fetchMarketQuote(): Promise<MarketQuote> {
+  if (quoteCache && Date.now() - quoteCache.at < QUOTE_TTL_MS) return quoteCache.quote;
   const http = await fetchHttpQuote();
-  if (http) return http;
+  if (http) {
+    quoteCache = { at: Date.now(), quote: http };
+    return http;
+  }
+  if (quoteCache) return quoteCache.quote;
   try {
     const { bids, asks } = await fetchOnChainBook(1);
     const parsed = fromBook(
       bids.map((l) => ({ price: formatUnits(l.price, 18) })),
       asks.map((l) => ({ price: formatUnits(l.price, 18) })),
     );
-    if (parsed) return parsed;
+    if (parsed) {
+      quoteCache = { at: Date.now(), quote: parsed };
+      return parsed;
+    }
   } catch {
     // fall through
   }
-  return { last: INITIAL_MID, bid: INITIAL_MID - 0.0001, ask: INITIAL_MID + 0.0001 };
+  const fallback = { last: INITIAL_MID, bid: INITIAL_MID - 0.0001, ask: INITIAL_MID + 0.0001 };
+  quoteCache = { at: Date.now(), quote: fallback };
+  return fallback;
 }
 
 export function quoteToRawPrice(human: number, decimals = 18): bigint {

@@ -69,6 +69,7 @@ export function useDeskRound(house: HouseActions) {
   const [mid, setMid] = useState(INITIAL_MID);
   const [roundMid, setRoundMid] = useState(INITIAL_MID);
   const [secs, setSecs] = useState(ROUND_SECONDS);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
   const [votes, setVotes] = useState<VoteTally>(EMPTY_TALLY);
   const votesRef = useRef(votes);
   const [myVote, setMyVote] = useState<Vote | null>(null);
@@ -95,7 +96,11 @@ export function useDeskRound(house: HouseActions) {
   const waitingReactivityRef = useRef(false);
   const addressRef = useRef(house.address);
   const badgeRetryUntilRef = useRef<number | null>(null);
+  const endsAtRef = useRef<number | null>(null);
+  const pollInFlightRef = useRef(false);
+  const pollLiveRef = useRef<() => Promise<void>>(async () => undefined);
   addressRef.current = house.address;
+  endsAtRef.current = endsAt;
 
   const [tape, setTape] = useState<TapeItem[]>([
     { id: "t0", t: "00:00", label: "Stall cold — grant a hot key to open the orchard", tone: "neutral" },
@@ -146,6 +151,16 @@ export function useDeskRound(house: HouseActions) {
   useEffect(() => {
     autoplayingRef.current = autoplaying;
   }, [autoplaying]);
+
+  useEffect(() => {
+    if (phase !== "voting" || !endsAt) return;
+    const tick = () => {
+      setSecs(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [phase, endsAt]);
 
   useEffect(() => {
     if (!liveMode) return;
@@ -220,6 +235,7 @@ export function useDeskRound(house: HouseActions) {
     setVotes(snap.tally);
     setVotedCount(snap.votedCount ?? snap.ballots.length);
     setSecs(0);
+    setEndsAt(null);
     setLiveBallots(snap.ballots);
     setExecuteHash(snap.txHash);
     setExecuteError(snap.error);
@@ -298,7 +314,13 @@ export function useDeskRound(house: HouseActions) {
       }
       if (snap.status === "voting") {
         setPhase("voting");
-        setSecs(snap.remaining);
+        const until = snap.endsAt ?? (snap.remaining > 0 ? Date.now() + snap.remaining * 1000 : null);
+        if (until) {
+          setEndsAt(until);
+          setSecs(Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+        } else {
+          setSecs(snap.remaining);
+        }
         const id = snap.id;
         if (id) {
           const you = addressRef.current;
@@ -419,6 +441,7 @@ export function useDeskRound(house: HouseActions) {
     roundRef.current = n;
     setPhase("voting");
     setSecs(ROUND_SECONDS);
+    setEndsAt(null);
     setVotes({ bid: 2, ask: 1, hold: 1 });
     setVotedCount(4 + (opts?.preVote ? 1 : 0));
     setMyVote(opts?.preVote ?? null);
@@ -488,6 +511,7 @@ export function useDeskRound(house: HouseActions) {
         setVotedCount(0);
         setLiveBallots([]);
         setSchedule(NO_SCHEDULE);
+        setEndsAt(null);
         const snap = await openRoundApi();
         setRoundMid(snap.mid || mid);
         setExecuteHash(null);
@@ -501,7 +525,7 @@ export function useDeskRound(house: HouseActions) {
         await applyLiveSnapshot(snap);
         waitingReactivityRef.current = false;
         pollRef.current = setInterval(() => {
-          void pollLive();
+          void pollLiveRef.current();
         }, 1000);
       } catch (err) {
         log(err instanceof Error ? err.message : "Open round failed", "warn");
@@ -514,9 +538,13 @@ export function useDeskRound(house: HouseActions) {
   }
 
   async function pollLive() {
-    if (autoplayingRef.current || stopRef.current) return;
+    if (autoplayingRef.current || stopRef.current || pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
     try {
       const snap = await fetchRound();
+      if (snap.status === "idle" && endsAtRef.current && Date.now() < endsAtRef.current) {
+        return;
+      }
       if (snap.status === "voting") {
         await applyLiveSnapshot(snap);
         if (snap.remaining > 0) return;
@@ -550,8 +578,11 @@ export function useDeskRound(house: HouseActions) {
       clearTimers();
     } catch {
       // keep polling
+    } finally {
+      pollInFlightRef.current = false;
     }
   }
+  pollLiveRef.current = pollLive;
 
   async function resolveLocalRound() {
     if (stopRef.current) return;
@@ -663,6 +694,7 @@ export function useDeskRound(house: HouseActions) {
     autoplayingRef.current = false;
     setBusy(false);
     setSecs(ROUND_SECONDS);
+    setEndsAt(null);
     setVotes(EMPTY_TALLY);
     setVotedCount(0);
     setMyVote(null);
