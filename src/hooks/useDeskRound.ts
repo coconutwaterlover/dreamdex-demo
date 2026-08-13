@@ -92,6 +92,9 @@ export function useDeskRound(house: HouseActions) {
   const scoredRef = useRef<number | null>(null);
   const resolvingRef = useRef(false);
   const waitingReactivityRef = useRef(false);
+  const addressRef = useRef(house.address);
+  const badgeRetryUntilRef = useRef<number | null>(null);
+  addressRef.current = house.address;
 
   const [tape, setTape] = useState<TapeItem[]>([
     { id: "t0", t: "00:00", label: "Stall cold — grant a hot key to open the orchard", tone: "neutral" },
@@ -151,7 +154,7 @@ export function useDeskRound(house: HouseActions) {
       return;
     }
     const mine = liveBallots.find((b) => b.address.toLowerCase() === you.toLowerCase());
-    if (mine?.vote) setMyVote(mine.vote);
+    setMyVote(mine?.vote ?? restoreMyVote(roundRef.current, you));
   }, [house.address, liveBallots, liveMode]);
 
   const clearTimers = useCallback(() => {
@@ -280,7 +283,7 @@ export function useDeskRound(house: HouseActions) {
       if (snap.mid) setMid(snap.mid);
       if (snap.id) {
         if (snap.id !== roundRef.current) {
-          setMyVote(restoreMyVote(snap.id));
+          setMyVote(restoreMyVote(snap.id, addressRef.current));
         }
         setRound(snap.id);
         roundRef.current = snap.id;
@@ -297,7 +300,9 @@ export function useDeskRound(house: HouseActions) {
         setSecs(snap.remaining);
         const id = snap.id;
         if (id) {
-          setMyVote((prev) => prev ?? restoreMyVote(id));
+          const you = addressRef.current;
+          const mine = snap.ballots.find((b) => you && b.address.toLowerCase() === you.toLowerCase());
+          setMyVote(mine?.vote ?? restoreMyVote(id, you));
         }
         return;
       }
@@ -385,7 +390,7 @@ export function useDeskRound(house: HouseActions) {
           signature,
           name: playerName || undefined,
         });
-        persistMyVote(roundRef.current || round, v);
+        persistMyVote(roundRef.current || round, v, house.address);
         setMyVote(v);
         log(`You voted ${v.toUpperCase()}`, "live");
         await applyLiveSnapshot(snap);
@@ -478,6 +483,7 @@ export function useDeskRound(house: HouseActions) {
         scoredRef.current = null;
         resolvingRef.current = false;
         waitingReactivityRef.current = false;
+        badgeRetryUntilRef.current = null;
         setVotedCount(0);
         setLiveBallots([]);
         setSchedule(NO_SCHEDULE);
@@ -526,8 +532,21 @@ export function useDeskRound(house: HouseActions) {
         setBusy(true);
         return;
       }
-      clearTimers();
       await applyLiveSnapshot(snap);
+      const badgePending =
+        (snap.status === "scored" || snap.status === "blocked") &&
+        snap.votedCount > 0 &&
+        !snap.badgeTxHash &&
+        !/not configured|not set/i.test(snap.badgeError ?? "");
+      if (badgePending) {
+        if (badgeRetryUntilRef.current == null) badgeRetryUntilRef.current = Date.now() + 30_000;
+        if (Date.now() < badgeRetryUntilRef.current) {
+          setBusy(false);
+          return;
+        }
+      }
+      badgeRetryUntilRef.current = null;
+      clearTimers();
     } catch {
       // keep polling
     }

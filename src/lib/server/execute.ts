@@ -14,7 +14,7 @@ import {
 } from "@/lib/chain/pool-abi";
 import type { Vote } from "@/lib/desk/types";
 import { fetchOnChainBook, quoteToRawPrice } from "./market";
-import { getPublicClient, getSessionWallet, isExecutorConfigured } from "./session";
+import { getPublicClient, getSessionWallet, isExecutorConfigured, writeSessionContract } from "./session";
 
 export type ExecuteResult =
   | { ok: true; skipped: true; reason: "hold" }
@@ -227,7 +227,7 @@ export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> 
     if (!sim.result[0]) {
       return { ok: false, blocked: false, error: "placeOrderFor returned success=false (PostOnly crossed or silent reject)" };
     }
-    const txHash = await wallet.writeContract({
+    const txHash = await writeSessionContract({
       address: SOMI_USDSO_POOL,
       abi: poolAbi,
       functionName: "placeOrderFor",

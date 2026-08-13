@@ -172,16 +172,6 @@ export function DreamDesk() {
             Approve USDso
           </button>
         )}
-        {desk.phase !== "boot" && (
-          <button
-            type="button"
-            className="ghost"
-            onClick={desk.reset}
-            disabled={desk.busy && desk.autoplaying}
-          >
-            Reset
-          </button>
-        )}
       </footer>
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <MintModal notice={desk.mintNotice} onClose={desk.dismissMint} />

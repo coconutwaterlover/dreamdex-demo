@@ -2,7 +2,7 @@ import { SDK, SomniaReactivityPrecompileABI } from "@somnia-chain/reactivity";
 import { parseEventLogs, zeroAddress, type Hex } from "viem";
 import { ROUND_CLOCK_ADDRESS, isRoundClockConfigured } from "@/lib/chain/constants";
 import { roundClockAbi } from "@/lib/chain/round-clock-abi";
-import { getPublicClient, getSessionWallet } from "./session";
+import { getPublicClient, getSessionWallet, withSessionWrite } from "./session";
 
 const SCHEDULE_OPTIONS = {
   priorityFeePerGas: 1n,
@@ -33,20 +33,25 @@ export async function readFireCount(): Promise<bigint> {
 }
 
 export async function scheduleRoundEnd(endsAtMs: number): Promise<ScheduledRound> {
-  if (!isRoundClockConfigured() || !ROUND_CLOCK_ADDRESS) {
+  const clock = ROUND_CLOCK_ADDRESS;
+  if (!isRoundClockConfigured() || !clock) {
     throw new Error("Round clock not deployed — set NEXT_PUBLIC_ROUND_CLOCK_ADDRESS");
   }
   const fireCount = await readFireCount();
-  const sdk = getSdk();
-  const txHash = await sdk.scheduleSubscriptionAtTimestamp({
-    timestampMs: endsAtMs,
-    handlerContractAddress: ROUND_CLOCK_ADDRESS,
-    options: SCHEDULE_OPTIONS,
+  const { receipt, txHash } = await withSessionWrite(async () => {
+    const sdk = getSdk();
+    const hash = await sdk.scheduleSubscriptionAtTimestamp({
+      timestampMs: endsAtMs,
+      handlerContractAddress: clock,
+      options: SCHEDULE_OPTIONS,
+    });
+    if (hash instanceof Error) {
+      throw new Error(hash.message);
+    }
+    if (!hash) throw new Error("Reactivity schedule returned no hash");
+    const mined = await getPublicClient().waitForTransactionReceipt({ hash });
+    return { receipt: mined, txHash: hash as Hex };
   });
-  if (txHash instanceof Error) {
-    throw new Error(txHash.message);
-  }
-  const receipt = await getPublicClient().waitForTransactionReceipt({ hash: txHash });
   const created = parseEventLogs({
     abi: SomniaReactivityPrecompileABI,
     eventName: "SubscriptionCreated",

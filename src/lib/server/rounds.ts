@@ -148,6 +148,9 @@ export async function getRoundSnapshot(): Promise<RoundSnapshot> {
   if (current?.status === "voting" && (await roundIsDue(current))) {
     return resolveRound();
   }
+  if (current && (current.status === "scored" || current.status === "blocked") && !current.badgeSynced) {
+    return resolveRound();
+  }
   return snapshot(current);
 }
 
@@ -259,9 +262,9 @@ async function syncBadges(current: StoredRound, winner: Vote): Promise<void> {
     }
 
     const result = await syncBoard(players);
-    current.badgeSynced = true;
     current.badgeTxHash = result.txHash;
     current.badgeError = result.error ?? null;
+    current.badgeSynced = !!result.txHash && !result.error;
     current.minted = result.minted.map((a) => a.toLowerCase());
     const after = result.txHash ? await readBoard().catch(() => board) : board;
     const afterMap = new Map(after.map((row) => [row.wallet.toLowerCase(), row]));
@@ -280,7 +283,6 @@ async function syncBadges(current: StoredRound, winner: Vote): Promise<void> {
       if (row?.name) names.set(minted, row.name);
     }
   } catch (err) {
-    current.badgeSynced = true;
     current.badgeError = err instanceof Error ? err.message : "Badge sync failed";
   }
 }
@@ -292,7 +294,12 @@ export async function resolveRound(): Promise<RoundSnapshot> {
     try {
       const current = s.current;
       if (!current) throw new Error("No round to resolve");
-      if (current.status === "scored" || current.status === "blocked") return snapshot(current);
+      if (current.status === "scored" || current.status === "blocked") {
+        if (!current.badgeSynced && current.winner) {
+          await syncBadges(current, current.winner);
+        }
+        return snapshot(current);
+      }
       if (current.status === "voting") {
         const due = await roundIsDue(current);
         if (!due && Date.now() < current.endsAt) return snapshot(current);

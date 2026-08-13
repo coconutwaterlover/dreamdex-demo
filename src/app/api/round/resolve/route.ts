@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { resolveRound } from "@/lib/server/rounds";
 
+export const maxDuration = 60;
+
 export async function POST() {
   try {
     const round = await resolveRound();

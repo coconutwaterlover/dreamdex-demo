@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { DESK_BADGE_ADDRESS, isDeskBadgeConfigured } from "@/lib/chain/constants";
 import { deskBadgeAbi } from "@/lib/chain/desk-badge-abi";
-import { isExecutorConfigured, getPublicClient, getSessionWallet } from "./session";
+import { isExecutorConfigured, getPublicClient, writeSessionContract } from "./session";
 
 export type BoardRow = {
   wallet: Address;
@@ -70,9 +70,7 @@ export async function syncBoard(
   }
 
   try {
-    const wallet = getSessionWallet();
-    const publicClient = getPublicClient();
-    const txHash = await wallet.writeContract({
+    const txHash = await writeSessionContract({
       address: DESK_BADGE_ADDRESS,
       abi: deskBadgeAbi,
       functionName: "syncPlayers",
@@ -82,7 +80,6 @@ export async function syncBoard(
         players.map((p) => BigInt(p.score)),
       ],
     });
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
     const board = await readBoard();
     const byWallet = new Map(board.map((row) => [row.wallet.toLowerCase(), row]));
     return {

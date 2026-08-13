@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getRoundSnapshot } from "@/lib/server/rounds";
 
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     const round = await getRoundSnapshot();
