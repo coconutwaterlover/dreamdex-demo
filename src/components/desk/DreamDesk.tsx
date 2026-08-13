@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useDeskRound } from "@/hooks/useDeskRound";
 import { useHouseDesk } from "@/hooks/useHouseDesk";
+import type { Vote } from "@/lib/desk/types";
 import { DeskStrip } from "./DeskStrip";
 import { FruitGarnish } from "./FruitGarnish";
 import { Leaderboard } from "./Leaderboard";
 import { MintModal } from "./MintModal";
-import { OrderBook } from "./OrderBook";
+import { StallMap } from "./OrderBook";
 import { PhaseCard } from "./PhaseCard";
 import { RoundPanel } from "./RoundPanel";
 import { RulesModal } from "./RulesModal";
@@ -34,6 +35,13 @@ export function DreamDesk() {
     signVote: house.signVote,
   });
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [previewVote, setPreviewVote] = useState<Vote | null>(null);
+
+  useEffect(() => {
+    setPreviewVote(null);
+  }, [desk.phase]);
+
+  const focusVote = previewVote ?? (desk.phase === "voting" ? desk.myVote : desk.winner);
 
   useEffect(() => {
     if (desk.phase !== "voting") return;
@@ -115,6 +123,11 @@ export function DreamDesk() {
             playerName={desk.playerName}
             onPlayerName={desk.setPlayerName}
             needsName={desk.needsName}
+            lot={house.stallLot}
+            bid={desk.bid}
+            ask={desk.ask}
+            previewVote={previewVote}
+            onPreviewVote={setPreviewVote}
           />
           <PhaseCard
             phase={desk.phase}
@@ -131,14 +144,15 @@ export function DreamDesk() {
         </div>
 
         <aside className="side">
-          <OrderBook
+          <StallMap
             desk={desk.desk}
             mid={desk.mid}
-            levels={desk.levels}
             winner={desk.winner}
             phase={desk.phase}
             bid={desk.bid}
             ask={desk.ask}
+            lot={house.stallLot}
+            focusVote={focusVote}
           />
           <Leaderboard
             voters={desk.voters}
@@ -173,7 +187,7 @@ export function DreamDesk() {
           </button>
         )}
       </footer>
-      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <RulesModal open={rulesOpen} lot={house.stallLot} onClose={() => setRulesOpen(false)} />
       <MintModal notice={desk.mintNotice} onClose={desk.dismissMint} />
     </main>
     </>

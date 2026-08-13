@@ -4,6 +4,7 @@ import Link from "next/link";
 import { badgeTokenHref } from "@/lib/chain/constants";
 import { fruitForToken } from "@/lib/desk/fruits";
 import type { Voter } from "@/lib/desk/types";
+import { VOTE_META } from "@/lib/desk/voteMeta";
 
 export const BOARD_PREVIEW = 10;
 
@@ -42,7 +43,7 @@ function BoardRow({
         ) : (
           u.name
         )}
-        {u.vote && showVotes && <small>{u.vote}</small>}
+        {u.vote && showVotes && <small>{VOTE_META[u.vote].verb}</small>}
       </span>
       <span className="pts">
         {u.pts}

@@ -3,6 +3,17 @@ import { SHANNON_EXPLORER } from "@/lib/chain/constants";
 import { VOTE_FRUIT } from "@/lib/desk/fruits";
 import { ROUND_SECONDS, shortAddress } from "@/lib/desk/round";
 import type { Phase, RoundBallot, Vote, VoteTally, Voter } from "@/lib/desk/types";
+import {
+  cardHint,
+  committedLine,
+  executeVerb,
+  formatLot,
+  outcomeHeadline,
+  previewLine,
+  sizeLine,
+  VOTE_META,
+  VOTE_ORDER,
+} from "@/lib/desk/voteMeta";
 
 const TX_HASH = /^0x[a-fA-F0-9]{64}$/;
 
@@ -52,7 +63,8 @@ function VoteMark({
   cased?: "lower" | "upper";
 }) {
   const fruit = VOTE_FRUIT[vote];
-  const word = cased === "upper" ? vote.toUpperCase() : vote;
+  const meta = VOTE_META[vote];
+  const word = cased === "upper" ? meta.title : meta.verb;
   return (
     <>
       <img className="vote-fruit" src={fruit.src} alt="" width={16} height={16} />
@@ -63,10 +75,10 @@ function VoteMark({
 
 function yourCall(myVote: Vote | null, winner: Vote): string {
   if (!myVote) return "You did not vote this round";
-  if (myVote === winner) return `You matched — voted ${myVote.toUpperCase()}`;
-  if (winner === "hold") return `You voted ${myVote.toUpperCase()} — stall held`;
-  if (myVote === "hold") return "You held while the stall traded";
-  return `You missed — voted ${myVote.toUpperCase()}`;
+  if (myVote === winner) return `You matched — voted ${VOTE_META[myVote].verb}`;
+  if (winner === "hold") return `You voted ${VOTE_META[myVote].verb} — stall stayed quiet`;
+  if (myVote === "hold") return "You waited while the stall traded";
+  return `You missed — voted ${VOTE_META[myVote].verb}`;
 }
 
 function executeLine(opts: {
@@ -74,15 +86,18 @@ function executeLine(opts: {
   winner: Vote;
   executeHash: string | null;
   executeError: string | null;
+  lot: number;
+  bid: number;
+  ask: number;
 }): { label: string; tone: "ok" | "warn" | "mute" } {
-  const { phase, winner, executeHash, executeError } = opts;
+  const { phase, winner, executeHash, executeError, lot, bid, ask } = opts;
   if (phase === "blocked" || (executeError && /OnlyApprovedContracts/i.test(executeError))) {
     return { label: "placeOrderFor rejected — OnlyApprovedContracts", tone: "warn" };
   }
-  if (winner === "hold") return { label: "Hold — no order sent", tone: "mute" };
+  if (winner === "hold") return { label: executeVerb("hold", lot, bid, ask), tone: "mute" };
   if (executeError && !executeHash) return { label: executeError, tone: "warn" };
-  if (executeHash) return { label: `placeOrderFor ${winner.toUpperCase()} posted`, tone: "ok" };
-  return { label: `Winner ${winner.toUpperCase()} — no transaction`, tone: "mute" };
+  if (executeHash) return { label: executeVerb(winner, lot, bid, ask), tone: "ok" };
+  return { label: `${VOTE_META[winner].title} won — no transaction`, tone: "mute" };
 }
 
 export function RoundPanel({
@@ -112,6 +127,11 @@ export function RoundPanel({
   playerName,
   onPlayerName,
   needsName,
+  lot,
+  bid,
+  ask,
+  previewVote,
+  onPreviewVote,
 }: {
   phase: Phase;
   round: number;
@@ -139,6 +159,11 @@ export function RoundPanel({
   playerName?: string;
   onPlayerName?: (name: string) => void;
   needsName?: boolean;
+  lot: number;
+  bid: number;
+  ask: number;
+  previewVote: Vote | null;
+  onPreviewVote: (vote: Vote | null) => void;
 }) {
   const settled = phase === "scored" || phase === "blocked";
   const hasOutcome =
@@ -189,11 +214,11 @@ export function RoundPanel({
       )}
       {!hasOutcome && (
         <p className="hint">
+          Steer the stall. Majority posts one {formatLot(lot)} SOMI PostOnly — or nothing. You score
+          if the crowd picks the same thing
           {liveMode
-            ? "Signed 1 vote per wallet. Ballots stay blind until Somnia Reactivity ends the round (" +
-              ROUND_SECONDS +
-              "s demo window)"
-            : `Demo clock compresses 5:00 → ${ROUND_SECONDS}s · ballots stay blind until the clock hits zero`}
+            ? ` · signed 1 vote per wallet, blind until Reactivity ends the round (${ROUND_SECONDS}s)`
+            : ` · demo clock compresses 5:00 → ${ROUND_SECONDS}s`}
           {onOpenRules && (
             <>
               {" · "}
@@ -214,7 +239,7 @@ export function RoundPanel({
         </div>
       ) : (
         <div className="bars">
-          {(["bid", "ask", "hold"] as Vote[]).map((k) => (
+          {VOTE_ORDER.map((k) => (
             <div key={k} className={`bar-row ${k} ${winner === k ? "won" : ""}`}>
               <span className="bar-vote">
                 <VoteMark vote={k} />
@@ -244,26 +269,60 @@ export function RoundPanel({
               <small>3–24 characters · letters, numbers, . _ -</small>
             </label>
           )}
-          <div className="vote-actions">
-            {(["bid", "ask", "hold"] as Vote[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                className={`vote ${k} ${myVote === k ? "on" : ""}`}
-                disabled={!!myVote || autoplaying || !canVote}
-                onClick={() => onVote(k)}
-              >
-                <VoteMark vote={k} />
-              </button>
-            ))}
+          <div className="vote-actions" role="radiogroup" aria-label="Steer the stall">
+            {VOTE_ORDER.map((k) => {
+              const meta = VOTE_META[k];
+              const fruit = VOTE_FRUIT[k];
+              const selected = myVote === k;
+              const preview = previewVote === k;
+              return (
+                <div
+                  key={k}
+                  className={`vote-wrap ${k} ${selected ? "on" : ""} ${preview ? "preview" : ""}`}
+                  onPointerEnter={() => onPreviewVote(k)}
+                  onPointerLeave={() => onPreviewVote(null)}
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`vote-card ${k} ${selected ? "on" : ""}`}
+                    disabled={!!myVote || autoplaying || !canVote}
+                    aria-label={`${meta.title}. ${cardHint(k, lot, bid, ask)}`}
+                    onFocus={() => onPreviewVote(k)}
+                    onBlur={() => onPreviewVote(null)}
+                    onClick={() => onVote(k)}
+                  >
+                    <img
+                      className={`vote-fruit ${(preview || selected) ? `motion-${k}` : ""}`}
+                      src={fruit.src}
+                      alt=""
+                      width={28}
+                      height={28}
+                    />
+                    <strong>{meta.title}</strong>
+                    <span className="vote-trader">{meta.trader}</span>
+                    <span className="vote-size">{sizeLine(k, lot, bid, ask)}</span>
+                    <span className="vote-hint">{cardHint(k, lot, bid, ask)}</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
+          <p className="vote-preview" aria-live="polite">
+            {previewVote
+              ? previewLine(previewVote, lot, bid, ask)
+              : myVote
+                ? committedLine(myVote, lot, bid, ask)
+                : "Hover a card to see where the stall’s order would sit."}
+          </p>
         </>
       )}
 
       {winner && !hasOutcome && (
         <div className="resolve-banner">
-          Winner: <strong><VoteMark vote={winner} cased="upper" /></strong>
-          {winner !== "hold" && " · session key executing"}
+          Crowd chose <strong><VoteMark vote={winner} cased="upper" /></strong>
+          {winner !== "hold" && ` · session key posting ${formatLot(lot)} SOMI`}
           {phase === "signing" && (
             <div className="sign">
               <div className="sign-bar">
@@ -285,11 +344,14 @@ export function RoundPanel({
           myVote={myVote}
           youCall={yourCall(myVote, winner)}
           youDelta={youVoter?.delta}
-          execute={executeLine({ phase, winner, executeHash, executeError })}
+          execute={executeLine({ phase, winner, executeHash, executeError, lot, bid, ask })}
           executeHash={executeHash}
           executeError={executeError}
           roundMid={roundMid}
           mid={mid}
+          lot={lot}
+          bid={bid}
+          ask={ask}
           roster={roster}
           onOpenRules={onOpenRules}
         />
@@ -309,6 +371,9 @@ function Outcome({
   executeError,
   roundMid,
   mid,
+  lot,
+  bid,
+  ask,
   roster,
   onOpenRules,
 }: {
@@ -322,6 +387,9 @@ function Outcome({
   executeError: string | null;
   roundMid: number;
   mid: number;
+  lot: number;
+  bid: number;
+  ask: number;
   roster: { id: string; name: string; vote: Vote; you: boolean }[];
   onOpenRules?: () => void;
 }) {
@@ -331,12 +399,13 @@ function Outcome({
   return (
     <div className="outcome">
       <div className={`outcome-hero ${winner}`}>
-        <span className="outcome-kicker">Winner</span>
+        <span className="outcome-kicker">Crowd chose</span>
         <strong>
           <VoteMark vote={winner} cased="upper" />
         </strong>
+        <p className="outcome-story">{outcomeHeadline(winner, lot, bid, ask)}</p>
         <span className="outcome-tally">
-          {votes.bid} bid · {votes.ask} ask · {votes.hold} hold
+          {votes.bid} buy · {votes.ask} sell · {votes.hold} wait
         </span>
       </div>
 
@@ -382,7 +451,7 @@ function Outcome({
             {roundMid.toFixed(4)}
             {moved ? ` → ${mid.toFixed(4)}` : " — unchanged"}
             <small>
-              Match +10 · opposite −6 · hold +2 if quiet
+              Match +10 · opposite −6 · wait +2 if quiet
               {onOpenRules && (
                 <>
                   {" · "}

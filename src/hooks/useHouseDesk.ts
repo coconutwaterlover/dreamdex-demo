@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { maxUint256 } from "viem";
+import { formatUnits, maxUint256 } from "viem";
 import {
   useAccount,
   useConnect,
@@ -29,6 +29,7 @@ import {
 } from "@/lib/chain/constants";
 import { erc20Abi, poolAbi } from "@/lib/chain/pool-abi";
 import { shortAddress } from "@/lib/desk/round";
+import { FALLBACK_LOT_SOMI, stallSize } from "@/lib/desk/voteMeta";
 
 export function useHouseDesk() {
   const chainEnabled = isChainConfigured();
@@ -82,6 +83,9 @@ export function useHouseDesk() {
   });
 
   const quoteToken = poolParams.data?.[1];
+  const stallLot = stallSize(
+    poolParams.data?.[5] != null ? Number(formatUnits(poolParams.data[5], 18)) : FALLBACK_LOT_SOMI,
+  );
 
   const approved = useMemo(() => {
     if (!chainEnabled) return undefined;
@@ -168,6 +172,7 @@ export function useHouseDesk() {
     connecting,
     writing,
     quoteToken,
+    stallLot,
     connectWallet,
     grantSession,
     revokeDesk,

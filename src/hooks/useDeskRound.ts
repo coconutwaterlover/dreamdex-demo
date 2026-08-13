@@ -27,6 +27,7 @@ import type {
   Voter,
 } from "@/lib/desk/types";
 import { persistMyVote, restoreMyVote, voteMessage } from "@/lib/desk/vote";
+import { VOTE_META } from "@/lib/desk/voteMeta";
 import { boardToVoters, useDeskBadges } from "./useDeskBadges";
 
 type HouseActions = {
@@ -743,14 +744,6 @@ export function useDeskRound(house: HouseActions) {
   const ballotsCast = liveMode ? votedCount : revealedVotes;
   const bid = +(mid - 0.0001).toFixed(4);
   const ask = +(mid + 0.0001).toFixed(4);
-  const levels = [
-    { side: "ask" as const, px: +(ask + 0.0003).toFixed(4), sz: 420 },
-    { side: "ask" as const, px: +(ask + 0.0002).toFixed(4), sz: 180 },
-    { side: "ask" as const, px: ask, sz: 95 },
-    { side: "bid" as const, px: bid, sz: 110 },
-    { side: "bid" as const, px: +(bid - 0.0002).toFixed(4), sz: 260 },
-    { side: "bid" as const, px: +(bid - 0.0003).toFixed(4), sz: 510 },
-  ];
 
   const mm = String(Math.floor(secs / 60)).padStart(2, "0");
   const ss = String(secs % 60).padStart(2, "0");
@@ -770,7 +763,7 @@ export function useDeskRound(house: HouseActions) {
         if (liveMode && !house.isConnected) {
           return { label: "Connect to vote", action: connect };
         }
-        return { label: myVote ? `Voted ${myVote.toUpperCase()} — waiting…` : needsName ? "Pick a badge name, then vote" : "Cast a vote above", action: undefined };
+        return { label: myVote ? `Voted ${VOTE_META[myVote].verb} — waiting…` : needsName ? "Pick a badge name, then vote" : "Cast a vote above", action: undefined };
       case "revoked":
         return { label: "Try resolve without grant", action: tryBlocked };
       case "blocked":
@@ -809,7 +802,6 @@ export function useDeskRound(house: HouseActions) {
     totalVotes,
     bid,
     ask,
-    levels,
     liveMode,
     clock: `${mm}:${ss}`,
     primary,
