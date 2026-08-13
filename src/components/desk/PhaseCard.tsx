@@ -29,7 +29,7 @@ export function PhaseCard({
       <div className="armed-card rise">
         <h2>Desk armed</h2>
         <p>
-          Hot key can place / cancel / reduce — not withdraw. Open a swarm round and let the crowd
+          Hot key can place / cancel / reduce — not withdraw. Open a stall round and let the crowd
           steer the next order.
         </p>
       </div>

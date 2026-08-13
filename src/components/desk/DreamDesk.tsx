@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useDeskRound } from "@/hooks/useDeskRound";
 import { useHouseDesk } from "@/hooks/useHouseDesk";
 import { DeskStrip } from "./DeskStrip";
+import { FruitGarnish } from "./FruitGarnish";
 import { Leaderboard } from "./Leaderboard";
+import { MintModal } from "./MintModal";
 import { OrderBook } from "./OrderBook";
 import { PhaseCard } from "./PhaseCard";
 import { RoundPanel } from "./RoundPanel";
@@ -45,20 +47,22 @@ export function DreamDesk() {
   }, [desk.phase]);
 
   return (
-    <main className={`shell ${desk.desk.revoked ? "is-revoked" : ""}`}>
+    <>
+      <FruitGarnish />
+      <main className={`shell ${desk.desk.revoked ? "is-revoked" : ""}`}>
       <header className="hero rise">
         <div>
-          <p className="eyebrow">dreamDEX · Swarm Desk</p>
+          <p className="eyebrow">dreamDEX · fruit stall</p>
           <h1>DreamDesk</h1>
           <p className="pitch">
-            The owner delegates a hot key. The crowd votes. Majority is the move — the
+            The owner delegates a hot key. The crowd votes. Majority is the harvest — the
             session key places it with <code>placeOrderFor</code>. Funds never leave the
             owner.
           </p>
         </div>
         <div className="hero-actions">
           <button type="button" className="ghost" onClick={() => setRulesOpen(true)}>
-            How the swarm works
+            How the stall works
           </button>
           <button
             type="button"
@@ -67,7 +71,7 @@ export function DreamDesk() {
             onClick={desk.playDemo}
           >
             <span className="play-icon" aria-hidden />
-            {desk.autoplaying ? "Playing demo" : "Play demo"}
+            {desk.autoplaying ? "Squeezing demo" : "Taste the demo"}
           </button>
         </div>
       </header>
@@ -97,7 +101,7 @@ export function DreamDesk() {
             roundMid={desk.roundMid}
             mid={desk.mid}
             autoplaying={desk.autoplaying}
-            canVote={!desk.liveMode || house.isConnected}
+            canVote={desk.canCastVote}
             liveMode={desk.liveMode}
             executeHash={desk.executeHash}
             executeError={desk.executeError}
@@ -107,6 +111,9 @@ export function DreamDesk() {
             youId={house.address}
             onVote={desk.castVote}
             onOpenRules={() => setRulesOpen(true)}
+            playerName={desk.playerName}
+            onPlayerName={desk.setPlayerName}
+            needsName={desk.needsName}
           />
           <PhaseCard
             phase={desk.phase}
@@ -136,6 +143,8 @@ export function DreamDesk() {
             voters={desk.voters}
             youId={house.address}
             onOpenRules={() => setRulesOpen(true)}
+            live={desk.liveMode}
+            preview
           />
         </aside>
       </section>
@@ -173,6 +182,8 @@ export function DreamDesk() {
         )}
       </footer>
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <MintModal notice={desk.mintNotice} onClose={desk.dismissMint} />
     </main>
+    </>
   );
 }

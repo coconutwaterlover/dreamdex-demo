@@ -14,7 +14,13 @@ export function openRound() {
   return fetch("/api/round/open", { method: "POST" }).then((r) => parse<RoundSnapshot>(r));
 }
 
-export function postVote(body: { vote: Vote; address: string; message: string; signature: string }) {
+export function postVote(body: {
+  vote: Vote;
+  address: string;
+  message: string;
+  signature: string;
+  name?: string;
+}) {
   return fetch("/api/round/vote", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

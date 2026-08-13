@@ -19,6 +19,7 @@ export type Voter = {
   pts: number;
   vote?: Vote;
   delta?: number;
+  tokenId?: number;
 };
 
 export type TapeItem = {
@@ -36,7 +37,23 @@ export type DeskView = {
   live: boolean;
 };
 
-export type RoundBallot = { address: string; vote: Vote };
+export type RoundBallot = { address: string; vote: Vote; name?: string };
+
+export type ScoreDelta = {
+  address: string;
+  name: string;
+  delta: number;
+  pts: number;
+  tokenId: number | null;
+};
+
+export type MintNotice = {
+  roundId: number;
+  name: string;
+  score: number;
+  tokenId: number | null;
+  txHash: string | null;
+};
 
 export type RoundSnapshot = {
   id: number | null;
@@ -51,4 +68,8 @@ export type RoundSnapshot = {
   mid: number;
   subscriptionId: string | null;
   scheduleTxHash: string | null;
+  badgeTxHash: string | null;
+  badgeError: string | null;
+  minted: string[];
+  scoreDeltas: ScoreDelta[];
 };

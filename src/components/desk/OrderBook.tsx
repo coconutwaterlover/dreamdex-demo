@@ -24,7 +24,7 @@ export function OrderBook({
       <div className="book-head">
         <strong>SOMI / USDso</strong>
         <span className={desk.live ? "live-tag" : "mute-tag"}>
-          {desk.revoked ? "frozen" : desk.live ? "live book" : "waiting"}
+          {desk.revoked ? "frozen" : desk.live ? "ripe book" : "waiting"}
         </span>
       </div>
       <div className="midline">
@@ -42,7 +42,7 @@ export function OrderBook({
       </ul>
       {winner && winner !== "hold" && (phase === "signing" || phase === "scored") && (
         <div className="resting rise">
-          Swarm {winner.toUpperCase()} resting @ {winner === "bid" ? bid : ask}
+          Stall {winner.toUpperCase()} resting @ {winner === "bid" ? bid : ask}
         </div>
       )}
     </div>

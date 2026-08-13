@@ -24,7 +24,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-top">
-          <h2 id="rules-title">The swarm steers. One key trades.</h2>
+          <h2 id="rules-title">The stall steers. One key trades.</h2>
           <button type="button" className="modal-x" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -77,7 +77,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
         </section>
 
         <section>
-          <h3>Your call vs the swarm</h3>
+          <h3>Your call vs the stall</h3>
           <p>
             You score for reading the room — matching the majority — not for PnL (yet).
           </p>
@@ -90,9 +90,19 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             </li>
             <li>You held while they traded: 0</li>
             <li>
-              Swarm held: everyone who voted gets <strong className="up">+2</strong>
+              Stall held: everyone who voted gets <strong className="up">+2</strong>
             </li>
           </ul>
+        </section>
+
+        <section>
+          <h3>Soulbound badges</h3>
+          <p>
+            The live leaderboard is an on-chain NFT collection. First time you score a round, the
+            session key mints one soulbound badge with the name you picked and a tropical fruit
+            (pixel art, one of eight). Later rounds only update that token’s score — you never get
+            a second mint.
+          </p>
         </section>
 
         <p className="modal-note">

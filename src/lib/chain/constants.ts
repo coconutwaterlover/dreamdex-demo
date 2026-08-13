@@ -18,6 +18,7 @@ export const SHANNON_EXPLORER = "https://shannon-explorer.somnia.network";
 export const HOUSE_OWNER_ADDRESS = process.env.NEXT_PUBLIC_HOUSE_OWNER_ADDRESS as Address | undefined;
 export const SESSION_ADDRESS = process.env.NEXT_PUBLIC_SESSION_ADDRESS as Address | undefined;
 export const ROUND_CLOCK_ADDRESS = process.env.NEXT_PUBLIC_ROUND_CLOCK_ADDRESS as Address | undefined;
+export const DESK_BADGE_ADDRESS = process.env.NEXT_PUBLIC_DESK_BADGE_ADDRESS as Address | undefined;
 export const SOMNIA_RPC_URL = process.env.NEXT_PUBLIC_SOMNIA_RPC_URL ?? DEFAULT_RPC;
 export const DREAMDEX_API_URL = process.env.DREAMDEX_API_URL ?? DEFAULT_DREAMDEX_API;
 
@@ -30,6 +31,15 @@ export function isChainConfigured(): boolean {
 
 export function isRoundClockConfigured(): boolean {
   return isHexAddress(ROUND_CLOCK_ADDRESS);
+}
+
+export function isDeskBadgeConfigured(): boolean {
+  return isHexAddress(DESK_BADGE_ADDRESS);
+}
+
+export function badgeTokenHref(tokenId: number | bigint): string | null {
+  if (!DESK_BADGE_ADDRESS) return null;
+  return `${SHANNON_EXPLORER}/token/${DESK_BADGE_ADDRESS}/instance/${tokenId.toString()}`;
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000";

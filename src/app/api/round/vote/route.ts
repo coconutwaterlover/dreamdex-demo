@@ -10,6 +10,7 @@ export async function POST(request: Request) {
       address?: string;
       message?: string;
       signature?: string;
+      name?: string;
     };
     if (!body.vote || !isVote(body.vote) || !body.address || !body.message || !body.signature) {
       return NextResponse.json({ error: "Invalid vote payload" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     if (recovered.toLowerCase() !== body.address.toLowerCase()) {
       return NextResponse.json({ error: "Signature does not match wallet" }, { status: 401 });
     }
-    const round = castBallot(current.id, recovered, body.vote);
+    const round = await castBallot(current.id, recovered, body.vote, body.name);
     const fresh = await getRoundSnapshot();
     return NextResponse.json({ ...fresh, tally: round.tally, ballots: round.ballots });
   } catch (err) {

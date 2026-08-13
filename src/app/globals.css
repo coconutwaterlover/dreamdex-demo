@@ -1,32 +1,35 @@
 :root {
-  --font-display: "Syne", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Fruit-stall night market */
+  --ink: #fff8f0;
+  --ink-soft: #f3e4d4;
+  --fog: #ead7c4;
+  --paper: #1a100c;
+  --mute: #c4a994;
+  --line: rgba(255, 214, 170, 0.14);
+  --surface: #241610;
+  --surface-2: #2e1c14;
+  --surface-elevated: #2a1912;
 
-  /* Uniswap-like dark DEX chrome */
-  --ink: #ffffff;
-  --ink-soft: #d1d5e0;
-  --fog: #c8cdd8;
-  --paper: #131313;
-  --mute: #98a1c0;
-  --line: rgba(255, 255, 255, 0.08);
-  --surface: #1b1b1b;
-  --surface-2: #232323;
-  --surface-elevated: #1f1f1f;
+  --accent: #ff6b9d;
+  --accent-dim: rgba(255, 107, 157, 0.16);
+  --accent-strong: #ff4d6d;
 
-  --accent: #fc72ff;
-  --accent-dim: rgba(252, 114, 255, 0.14);
-  --accent-strong: #ff007a;
+  --mango: #ffd23f;
+  --lime: #8fd94a;
+  --kiwi: #c4f06a;
+  --tangerine: #ff7a3d;
+  --grape: #c084fc;
 
-  --live: #fc72ff;
-  --live-dim: rgba(252, 114, 255, 0.14);
-  --warn: #ff684b;
-  --warn-dim: rgba(255, 104, 75, 0.14);
-  --ok: #40b66b;
-  --ok-dim: rgba(64, 182, 107, 0.14);
+  --live: #ffd23f;
+  --live-dim: rgba(255, 210, 63, 0.16);
+  --warn: #ff7a3d;
+  --warn-dim: rgba(255, 122, 61, 0.16);
+  --ok: #8fd94a;
+  --ok-dim: rgba(143, 217, 74, 0.16);
 
-  --radius: 16px;
-  --radius-sm: 12px;
-  --radius-xs: 10px;
+  --radius: 22px;
+  --radius-sm: 16px;
+  --radius-xs: 12px;
 }
 
 * {
@@ -43,10 +46,11 @@ body {
   color: var(--ink);
   font-family: var(--font-mono), ui-monospace, monospace;
   background:
-    radial-gradient(900px 480px at 12% -8%, rgba(252, 114, 255, 0.16), transparent 55%),
-    radial-gradient(800px 420px at 92% 0%, rgba(255, 0, 122, 0.1), transparent 50%),
-    radial-gradient(700px 500px at 50% 100%, rgba(64, 182, 107, 0.05), transparent 45%),
-    linear-gradient(180deg, #0d0d0d 0%, var(--paper) 40%, #101010 100%);
+    radial-gradient(820px 460px at 8% -6%, rgba(255, 107, 157, 0.22), transparent 55%),
+    radial-gradient(720px 400px at 94% 4%, rgba(255, 210, 63, 0.16), transparent 50%),
+    radial-gradient(640px 480px at 48% 108%, rgba(143, 217, 74, 0.1), transparent 48%),
+    radial-gradient(500px 360px at 80% 80%, rgba(192, 132, 252, 0.08), transparent 50%),
+    linear-gradient(180deg, #140e0a 0%, var(--paper) 42%, #120c09 100%);
   background-attachment: fixed;
 }
 
@@ -55,12 +59,11 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.22;
+  opacity: 0.18;
   background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse at center, black 25%, transparent 72%);
+    radial-gradient(circle at 50% 50%, rgba(255, 214, 170, 0.16) 1.2px, transparent 1.6px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at center, black 22%, transparent 74%);
 }
 
 a {
@@ -101,6 +104,16 @@ button {
   }
 }
 
+@keyframes fruit-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(8deg);
+  }
+}
+
 .rise {
   animation: rise 0.45s ease both;
 }
@@ -115,10 +128,94 @@ button {
     background-color: transparent;
   }
   30% {
-    background-color: rgba(255, 104, 75, 0.1);
+    background-color: rgba(255, 122, 61, 0.12);
   }
 }
 
 main.is-revoked {
   animation: flash-warn 0.7s ease;
+}
+
+.fruit-garnish {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.fruit-garnish .fruit {
+  position: absolute;
+  width: 4.2rem;
+  height: 4.2rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  opacity: 0.32;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.35));
+  animation: fruit-float 7s ease-in-out infinite;
+}
+
+.fruit-garnish .f1 {
+  top: 4.5rem;
+  right: 4%;
+  width: 5.4rem;
+  height: 5.4rem;
+  animation-duration: 8s;
+}
+.fruit-garnish .f2 {
+  top: 38%;
+  left: 1.5%;
+  width: 3.4rem;
+  height: 3.4rem;
+  animation-delay: -1.4s;
+  animation-duration: 6.5s;
+}
+.fruit-garnish .f3 {
+  bottom: 12%;
+  right: 6%;
+  width: 3.8rem;
+  height: 3.8rem;
+  animation-delay: -2.8s;
+}
+.fruit-garnish .f4 {
+  top: 18%;
+  left: 8%;
+  width: 2.6rem;
+  height: 2.6rem;
+  opacity: 0.22;
+  animation-delay: -3.6s;
+  animation-duration: 9s;
+}
+.fruit-garnish .f5 {
+  bottom: 22%;
+  left: 5%;
+  width: 4.4rem;
+  height: 4.4rem;
+  animation-delay: -0.8s;
+}
+.fruit-garnish .f6 {
+  top: 58%;
+  right: 2%;
+  width: 3rem;
+  height: 3rem;
+  opacity: 0.24;
+  animation-delay: -4.2s;
+}
+
+@media (max-width: 720px) {
+  .fruit-garnish .fruit {
+    opacity: 0.16;
+  }
+  .fruit-garnish .f2,
+  .fruit-garnish .f4,
+  .fruit-garnish .f6 {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fruit-garnish .fruit {
+    animation: none;
+  }
 }

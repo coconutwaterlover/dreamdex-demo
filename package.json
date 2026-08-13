@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy:clock": "node scripts/deploy-round-clock.mjs"
+    "deploy:clock": "node scripts/deploy-round-clock.mjs",
+    "deploy:badge": "node scripts/deploy-desk-badge.mjs"
   },
   "dependencies": {
     "@somnia-chain/reactivity": "^0.2.1",

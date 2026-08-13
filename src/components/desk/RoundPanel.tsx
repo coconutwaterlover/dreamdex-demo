@@ -1,5 +1,6 @@
 import type { DeskSchedule } from "@/hooks/useDeskRound";
 import { SHANNON_EXPLORER } from "@/lib/chain/constants";
+import { VOTE_FRUIT } from "@/lib/desk/fruits";
 import { ROUND_SECONDS, shortAddress } from "@/lib/desk/round";
 import type { Phase, RoundBallot, Vote, VoteTally, Voter } from "@/lib/desk/types";
 
@@ -43,11 +44,28 @@ function ReactivityStrip({
   );
 }
 
+function VoteMark({
+  vote,
+  cased = "lower",
+}: {
+  vote: Vote;
+  cased?: "lower" | "upper";
+}) {
+  const fruit = VOTE_FRUIT[vote];
+  const word = cased === "upper" ? vote.toUpperCase() : vote;
+  return (
+    <>
+      <img className="vote-fruit" src={fruit.src} alt="" width={16} height={16} />
+      {word}
+    </>
+  );
+}
+
 function yourCall(myVote: Vote | null, winner: Vote): string {
   if (!myVote) return "You did not vote this round";
   if (myVote === winner) return `You matched — voted ${myVote.toUpperCase()}`;
-  if (winner === "hold") return `You voted ${myVote.toUpperCase()} — swarm held`;
-  if (myVote === "hold") return "You held while the swarm traded";
+  if (winner === "hold") return `You voted ${myVote.toUpperCase()} — stall held`;
+  if (myVote === "hold") return "You held while the stall traded";
   return `You missed — voted ${myVote.toUpperCase()}`;
 }
 
@@ -90,6 +108,9 @@ export function RoundPanel({
   youId,
   onVote,
   onOpenRules,
+  playerName,
+  onPlayerName,
+  needsName,
 }: {
   phase: Phase;
   round: number;
@@ -113,6 +134,9 @@ export function RoundPanel({
   youId?: string;
   onVote: (v: Vote) => void;
   onOpenRules?: () => void;
+  playerName?: string;
+  onPlayerName?: (name: string) => void;
+  needsName?: boolean;
 }) {
   const settled = phase === "scored" || phase === "blocked";
   const hasOutcome =
@@ -133,7 +157,7 @@ export function RoundPanel({
     liveBallots.length > 0
       ? liveBallots.map((b) => ({
           id: b.address,
-          name: shortAddress(b.address),
+          name: b.name || shortAddress(b.address),
           vote: b.vote,
           you: you ? b.address.toLowerCase() === you : false,
         }))
@@ -149,7 +173,7 @@ export function RoundPanel({
   return (
     <div className={`round rise ${phase}`}>
       <div className="round-top">
-        <strong>{hasOutcome ? `Round ${round || 1} outcomes` : `Swarm round ${round || 1}`}</strong>
+        <strong>{hasOutcome ? `Round ${round || 1} harvest` : `Stall round ${round || 1}`}</strong>
         <span className="clock">
           {phase === "voting" ? clock : hasOutcome ? "ended" : "resolving"}
         </span>
@@ -172,7 +196,7 @@ export function RoundPanel({
             <>
               {" · "}
               <button type="button" className="rules-link" onClick={onOpenRules}>
-                How the swarm works
+                How the stall works
               </button>
             </>
           )}
@@ -182,7 +206,9 @@ export function RoundPanel({
       <div className="bars">
         {(["bid", "ask", "hold"] as Vote[]).map((k) => (
           <div key={k} className={`bar-row ${k} ${winner === k ? "won" : ""}`}>
-            <span>{k}</span>
+            <span className="bar-vote">
+              <VoteMark vote={k} />
+            </span>
             <div className="track">
               <i style={{ width: `${totalVotes ? (votes[k] / totalVotes) * 100 : 0}%` }} />
             </div>
@@ -192,24 +218,40 @@ export function RoundPanel({
       </div>
 
       {phase === "voting" && (
-        <div className="vote-actions">
-          {(["bid", "ask", "hold"] as Vote[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={`vote ${k} ${myVote === k ? "on" : ""}`}
-              disabled={!!myVote || autoplaying || !canVote}
-              onClick={() => onVote(k)}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
+        <>
+          {needsName && onPlayerName && (
+            <label className="name-field">
+              <span>Badge name (locked at mint)</span>
+              <input
+                type="text"
+                value={playerName ?? ""}
+                maxLength={24}
+                autoComplete="nickname"
+                placeholder="e.g. mango"
+                onChange={(e) => onPlayerName(e.target.value.trim())}
+              />
+              <small>3–24 characters · letters, numbers, . _ -</small>
+            </label>
+          )}
+          <div className="vote-actions">
+            {(["bid", "ask", "hold"] as Vote[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                className={`vote ${k} ${myVote === k ? "on" : ""}`}
+                disabled={!!myVote || autoplaying || !canVote}
+                onClick={() => onVote(k)}
+              >
+                <VoteMark vote={k} />
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {winner && !hasOutcome && (
         <div className="resolve-banner">
-          Winner: <strong>{winner.toUpperCase()}</strong>
+          Winner: <strong><VoteMark vote={winner} cased="upper" /></strong>
           {winner !== "hold" && " · session key executing"}
           {phase === "signing" && (
             <div className="sign">
@@ -279,7 +321,9 @@ function Outcome({
     <div className="outcome">
       <div className={`outcome-hero ${winner}`}>
         <span className="outcome-kicker">Winner</span>
-        <strong>{winner.toUpperCase()}</strong>
+        <strong>
+          <VoteMark vote={winner} cased="upper" />
+        </strong>
         <span className="outcome-tally">
           {votes.bid} bid · {votes.ask} ask · {votes.hold} hold
         </span>
@@ -289,7 +333,7 @@ function Outcome({
         <div>
           <dt>Your vote</dt>
           <dd>
-            {myVote ? myVote.toUpperCase() : "—"}
+            {myVote ? <VoteMark vote={myVote} cased="upper" /> : "—"}
             <small>{youCall}</small>
             {typeof youDelta === "number" && youDelta !== 0 && (
               <em className={youDelta > 0 ? "up" : "down"}>
@@ -332,7 +376,7 @@ function Outcome({
                 <>
                   {" · "}
                   <button type="button" className="rules-link" onClick={onOpenRules}>
-                    How the swarm works
+                    How the stall works
                   </button>
                 </>
               )}
@@ -346,7 +390,9 @@ function Outcome({
           {roster.map((b) => (
             <li key={b.id} className={`${b.vote} ${b.you ? "you" : ""} ${b.vote === winner ? "hit" : "miss"}`}>
               <span>{b.you ? "You" : b.name}</span>
-              <em>{b.vote}</em>
+              <em>
+                <VoteMark vote={b.vote} />
+              </em>
             </li>
           ))}
         </ul>

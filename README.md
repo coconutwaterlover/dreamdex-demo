@@ -18,11 +18,13 @@ Without owner/session addresses the UI stays in theater mode. **Play demo** neve
 1. Create two EOAs: **owner** (cold) and **session** (hot). Put both *addresses* in `.env.local`. Put the session **private key** in `SESSION_PRIVATE_KEY` (server only).
 2. Fund the **owner** with testnet gas and USDso. After connecting as owner, click **Approve USDso** so the pool can auto-pull on Bids.
 3. Fund the **session** with STT for gas **and at least 32 STT** (Reactivity sybil threshold to create a Schedule subscription). Asks sell native SOMI, so the session also needs a little extra native for `msg.value` (credited to the owner).
-4. Deploy the round-end handler once, then paste the address:
+4. Deploy the round-end handler and the soulbound leaderboard badge (session key is the minter):
 
    ```bash
    npm run deploy:clock
-   # add NEXT_PUBLIC_ROUND_CLOCK_ADDRESS=0x… to .env.local
+   npm run deploy:badge
+   # add NEXT_PUBLIC_ROUND_CLOCK_ADDRESS and NEXT_PUBLIC_DESK_BADGE_ADDRESS to .env.local
+   # optional: NEXT_PUBLIC_APP_URL=https://your-app.vercel.app so tokenURI points at /api/nft/{id}
    ```
 
 5. Add Shannon (chain ID `50312`, RPC `https://api.infra.testnet.somnia.network`) in the wallet.
@@ -37,7 +39,7 @@ Votes are 1-per-wallet in memory on this Node process (not shared across Vercel 
 1. Connect owner → grant session key (on-chain) → approve USDso
 2. Open round → Reactivity schedules the window → connect any wallet → sign Bid / Ask / Hold
 3. On-chain callback fires → session key `placeOrderFor` (or Hold)
-4. Leaderboard updates (± points, still Day-1 stub scoring)
+4. Leaderboard is the soulbound badge collection (score on-chain; first round mints, later rounds update)
 5. Revoke desk → next execute blocked
 
 Or hit **Play demo** (local narrative; no chain, no session key).

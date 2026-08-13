@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchRound, openRound as openRoundApi, postVote, resolveRound as resolveRoundApi } from "@/lib/desk/api";
+import { isPlayerName, PLAYER_NAME_STORAGE } from "@/lib/desk/name";
 import {
   cloneSeedVoters,
   EMPTY_TALLY,
@@ -14,8 +15,19 @@ import {
   tallyWinner,
 } from "@/lib/desk/round";
 import { scoreVoters } from "@/lib/desk/scoring";
-import type { DeskView, Phase, RoundSnapshot, TapeItem, Vote, VoteTally, Voter } from "@/lib/desk/types";
+import type {
+  DeskView,
+  MintNotice,
+  Phase,
+  RoundSnapshot,
+  ScoreDelta,
+  TapeItem,
+  Vote,
+  VoteTally,
+  Voter,
+} from "@/lib/desk/types";
 import { voteMessage } from "@/lib/desk/vote";
+import { boardToVoters, useDeskBadges } from "./useDeskBadges";
 
 type HouseActions = {
   ownerLabel: string;
@@ -67,6 +79,9 @@ export function useDeskRound(house: HouseActions) {
   const [executeHash, setExecuteHash] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [liveBallots, setLiveBallots] = useState<RoundSnapshot["ballots"]>([]);
+  const [scoreDeltas, setScoreDeltas] = useState<ScoreDelta[]>([]);
+  const [mintNotice, setMintNotice] = useState<MintNotice | null>(null);
+  const [playerName, setPlayerName] = useState("");
   const [schedule, setSchedule] = useState<DeskSchedule>(NO_SCHEDULE);
   const stopRef = useRef(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -78,11 +93,30 @@ export function useDeskRound(house: HouseActions) {
   const waitingReactivityRef = useRef(false);
 
   const [tape, setTape] = useState<TapeItem[]>([
-    { id: "t0", t: "00:00", label: "Desk cold — grant a hot key to open Swarm", tone: "neutral" },
+    { id: "t0", t: "00:00", label: "Stall cold — grant a hot key to open the orchard", tone: "neutral" },
   ]);
 
   const liveMode = house.chainEnabled && !autoplaying;
   const chainArmed = house.approved === true;
+  const badges = useDeskBadges(liveMode, house.address);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PLAYER_NAME_STORAGE);
+      if (saved) setPlayerName(saved);
+    } catch {
+      // private mode
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!playerName) return;
+    try {
+      localStorage.setItem(PLAYER_NAME_STORAGE, playerName);
+    } catch {
+      // private mode
+    }
+  }, [playerName]);
 
   const desk: DeskView = useMemo(() => {
     const revoked = phase === "revoked" || phase === "blocked";
@@ -187,28 +221,56 @@ export function useDeskRound(house: HouseActions) {
     if (snap.status === "blocked") {
       setPhase("blocked");
       log("Round resolve blocked — OnlyApprovedContracts", "warn");
+    } else {
+      const w = snap.winner ?? "hold";
+      log(`Round resolved → ${w.toUpperCase()} (${snap.tally.bid}B / ${snap.tally.ask}A / ${snap.tally.hold}H)`, "ok");
+      if (w === "hold") {
+        log("Hold — no order", "neutral");
+      } else if (snap.error && !snap.txHash) {
+        log(snap.error, "warn");
+      } else {
+        setPhase("signing");
+        setSignProgress(5);
+        if (snap.txHash) {
+          setExecuteHash(snap.txHash);
+          log(`placeOrderFor ${w} · ${snap.txHash}`, "ok");
+        }
+      }
+    }
+    setScoreDeltas(snap.scoreDeltas ?? []);
+    if (snap.badgeTxHash) {
+      const n = snap.minted?.length ?? 0;
+      log(
+        n
+          ? `Badges synced · ${n} minted · ${snap.badgeTxHash}`
+          : `Badge scores updated · ${snap.badgeTxHash}`,
+        "ok",
+      );
+    } else if (snap.badgeError) {
+      log(snap.badgeError, "warn");
+    }
+    const you = house.address?.toLowerCase();
+    if (you && (snap.minted ?? []).some((a) => a.toLowerCase() === you)) {
+      const row = (snap.scoreDeltas ?? []).find((d) => d.address.toLowerCase() === you);
+      setMintNotice({
+        roundId: snap.id,
+        name: row?.name || playerName || shortAddress(you),
+        score: row?.pts ?? 0,
+        tokenId: row?.tokenId ?? null,
+        txHash: snap.badgeTxHash,
+      });
+    }
+    void badges.refetch();
+    if (snap.status === "blocked") {
       setBusy(false);
       return;
     }
-    const w = snap.winner ?? "hold";
-    log(`Round resolved → ${w.toUpperCase()} (${snap.tally.bid}B / ${snap.tally.ask}A / ${snap.tally.hold}H)`, "ok");
-    if (w === "hold") {
-      log("Hold — no order", "neutral");
-      await scoreRound(w, false, snap.ballots);
+    if (liveMode) {
+      setPhase("scored");
+      setBusy(false);
       return;
     }
-    if (snap.error && !snap.txHash) {
-      log(snap.error, "warn");
-      await scoreRound(w, false, snap.ballots);
-      return;
-    }
-    setPhase("signing");
-    setSignProgress(5);
-    if (snap.txHash) {
-      setExecuteHash(snap.txHash);
-      log(`placeOrderFor ${w} · ${snap.txHash}`, "ok");
-    }
-    await scoreRound(w, !!snap.txHash, snap.ballots);
+    await scoreRound(snap.winner ?? "hold", !!snap.txHash, snap.ballots);
   }
 
   const applyLiveSnapshot = useCallback(
@@ -227,7 +289,6 @@ export function useDeskRound(house: HouseActions) {
       if (snap.status === "voting") {
         setPhase("voting");
         setSecs(snap.remaining);
-        setVoters(ballotsToVoters(snap.ballots, house.address));
         return;
       }
       if (snap.status === "resolving") {
@@ -298,6 +359,11 @@ export function useDeskRound(house: HouseActions) {
         log("Connect a wallet to vote", "warn");
         return;
       }
+      const needsName = !badges.hasBadge(house.address);
+      if (needsName && !isPlayerName(playerName)) {
+        log("Pick a display name for your badge first", "warn");
+        return;
+      }
       setBusy(true);
       try {
         const message = voteMessage(roundRef.current || round, v);
@@ -307,6 +373,7 @@ export function useDeskRound(house: HouseActions) {
           address: house.address,
           message,
           signature,
+          name: playerName || undefined,
         });
         setMyVote(v);
         log(`You voted ${v.toUpperCase()}`, "live");
@@ -338,6 +405,8 @@ export function useDeskRound(house: HouseActions) {
     setExecuteHash(null);
     setExecuteError(null);
     setLiveBallots([]);
+    setScoreDeltas([]);
+    setMintNotice(null);
     setSchedule(NO_SCHEDULE);
     setRoundMid(mid);
     setVoters((list) =>
@@ -396,6 +465,7 @@ export function useDeskRound(house: HouseActions) {
         setRoundMid(snap.mid || mid);
         setExecuteHash(null);
         setExecuteError(null);
+        setScoreDeltas([]);
         setSignProgress(0);
         log(`Round ${snap.id} open — Bid / Ask / Hold (signed 1p1v)`, "live");
         if (snap.scheduleTxHash) {
@@ -423,7 +493,6 @@ export function useDeskRound(house: HouseActions) {
       if (snap.status === "voting") {
         setVotes(snap.tally);
         setSecs(snap.remaining);
-        setVoters(ballotsToVoters(snap.ballots, house.address));
         setLiveBallots(snap.ballots);
         if (snap.mid) setMid(snap.mid);
         if (snap.remaining > 0) return;
@@ -564,6 +633,8 @@ export function useDeskRound(house: HouseActions) {
     setExecuteHash(null);
     setExecuteError(null);
     setLiveBallots([]);
+    setScoreDeltas([]);
+    setMintNotice(null);
     setSchedule(NO_SCHEDULE);
     setRound(0);
     roundRef.current = 0;
@@ -596,7 +667,7 @@ export function useDeskRound(house: HouseActions) {
       roundRef.current = 0;
       setMid(INITIAL_MID);
       setVoters(cloneSeedVoters());
-      setTape([{ id: "t-play", t: stamp(), label: "Autoplay — Swarm Desk story (no chain txs)", tone: "live" }]);
+      setTape([{ id: "t-play", t: stamp(), label: "Autoplay — fruit stall story (no chain txs)", tone: "live" }]);
       await new Promise((r) => setTimeout(r, 280));
       await wait(450);
       setPhase("connected");
@@ -622,6 +693,13 @@ export function useDeskRound(house: HouseActions) {
     }
   }
 
+  const liveVoters = useMemo(
+    () => (liveMode ? boardToVoters(badges.rows, house.address, liveBallots, scoreDeltas) : null),
+    [badges.rows, house.address, liveBallots, liveMode, scoreDeltas],
+  );
+  const needsName = liveMode && !!house.address && !badges.hasBadge(house.address);
+  const canCastVote = !liveMode || (!!house.isConnected && (!needsName || isPlayerName(playerName)));
+
   const totalVotes = votes.bid + votes.ask + votes.hold || 1;
   const bid = +(mid - 0.0001).toFixed(4);
   const ask = +(mid + 0.0001).toFixed(4);
@@ -638,7 +716,7 @@ export function useDeskRound(house: HouseActions) {
   const ss = String(secs % 60).padStart(2, "0");
 
   const primary = (() => {
-    if (autoplaying) return { label: "Playing demo…", action: undefined as undefined | (() => void) };
+    if (autoplaying) return { label: "Squeezing demo…", action: undefined as undefined | (() => void) };
     if (busy && phase !== "voting") return { label: "Working…", action: undefined as undefined | (() => void) };
     switch (phase) {
       case "boot":
@@ -652,7 +730,7 @@ export function useDeskRound(house: HouseActions) {
         if (liveMode && !house.isConnected) {
           return { label: "Connect to vote", action: connect };
         }
-        return { label: myVote ? `Voted ${myVote.toUpperCase()} — waiting…` : "Cast a vote above", action: undefined };
+        return { label: myVote ? `Voted ${myVote.toUpperCase()} — waiting…` : needsName ? "Pick a badge name, then vote" : "Cast a vote above", action: undefined };
       case "revoked":
         return { label: "Try resolve without grant", action: tryBlocked };
       case "blocked":
@@ -677,7 +755,13 @@ export function useDeskRound(house: HouseActions) {
     executeError,
     liveBallots,
     schedule,
-    voters,
+    voters: liveVoters ?? voters,
+    playerName,
+    setPlayerName,
+    needsName,
+    canCastVote,
+    mintNotice,
+    dismissMint: () => setMintNotice(null),
     round,
     tape,
     desk,

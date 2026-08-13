@@ -7,11 +7,11 @@ export const MOCK_TX = "0xf3a91c…8e2b";
 
 export const SEED_VOTERS: Voter[] = [
   { id: "you", name: "You", pts: 40 },
-  { id: "nova", name: "nova.eth", pts: 70 },
-  { id: "relay", name: "relay", pts: 55 },
-  { id: "mira", name: "mira", pts: 48 },
-  { id: "kestrel", name: "kestrel", pts: 33 },
-  { id: "pixel", name: "pixel", pts: 22 },
+  { id: "mango", name: "mango.eth", pts: 70 },
+  { id: "kiwi", name: "kiwi", pts: 55 },
+  { id: "lychee", name: "lychee", pts: 48 },
+  { id: "papaya", name: "papaya", pts: 33 },
+  { id: "berry", name: "berry", pts: 22 },
 ];
 
 export const EMPTY_TALLY: VoteTally = { bid: 0, ask: 0, hold: 0 };
