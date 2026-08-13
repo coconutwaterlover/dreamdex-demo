@@ -16,11 +16,13 @@ function BoardRow({
   rank,
   you,
   live,
+  showVotes,
 }: {
   u: Voter;
   rank: number;
   you?: string;
   live?: boolean;
+  showVotes?: boolean;
 }) {
   const href = u.tokenId != null ? badgeTokenHref(u.tokenId) : null;
   const fruit = fruitForToken(u.tokenId ?? (live ? undefined : rank));
@@ -40,7 +42,7 @@ function BoardRow({
         ) : (
           u.name
         )}
-        {u.vote && <small>{u.vote}</small>}
+        {u.vote && showVotes && <small>{u.vote}</small>}
       </span>
       <span className="pts">
         {u.pts}
@@ -60,12 +62,14 @@ export function Leaderboard({
   onOpenRules,
   live,
   preview,
+  showVotes = true,
 }: {
   voters: Voter[];
   youId?: string;
   onOpenRules?: () => void;
   live?: boolean;
   preview?: boolean;
+  showVotes?: boolean;
 }) {
   const you = youId?.toLowerCase();
   const shown = preview ? voters.slice(0, BOARD_PREVIEW) : voters;
@@ -88,7 +92,7 @@ export function Leaderboard({
       )}
       <ol>
         {shown.map((u, i) => (
-          <BoardRow key={u.id} u={u} rank={i + 1} you={you} live={live} />
+          <BoardRow key={u.id} u={u} rank={i + 1} you={you} live={live} showVotes={showVotes} />
         ))}
       </ol>
       {hidden > 0 && (

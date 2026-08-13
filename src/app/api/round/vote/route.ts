@@ -28,9 +28,9 @@ export async function POST(request: Request) {
     if (recovered.toLowerCase() !== body.address.toLowerCase()) {
       return NextResponse.json({ error: "Signature does not match wallet" }, { status: 401 });
     }
-    const round = await castBallot(current.id, recovered, body.vote, body.name);
+    await castBallot(current.id, recovered, body.vote, body.name);
     const fresh = await getRoundSnapshot();
-    return NextResponse.json({ ...fresh, tally: round.tally, ballots: round.ballots });
+    return NextResponse.json(fresh);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed";
     console.error("[round/vote]", message);

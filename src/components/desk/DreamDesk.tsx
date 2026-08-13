@@ -94,6 +94,7 @@ export function DreamDesk() {
             clock={desk.clock}
             votes={desk.votes}
             totalVotes={desk.totalVotes}
+            votedCount={desk.votedCount}
             myVote={desk.myVote}
             winner={desk.winner}
             signProgress={desk.signProgress}
@@ -145,6 +146,7 @@ export function DreamDesk() {
             onOpenRules={() => setRulesOpen(true)}
             live={desk.liveMode}
             preview
+            showVotes={desk.phase !== "voting"}
           />
         </aside>
       </section>

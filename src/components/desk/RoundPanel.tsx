@@ -91,6 +91,7 @@ export function RoundPanel({
   clock,
   votes,
   totalVotes,
+  votedCount,
   myVote,
   winner,
   signProgress,
@@ -117,6 +118,7 @@ export function RoundPanel({
   clock: string;
   votes: VoteTally;
   totalVotes: number;
+  votedCount: number;
   myVote: Vote | null;
   winner: Vote | null;
   signProgress: number;
@@ -188,10 +190,10 @@ export function RoundPanel({
       {!hasOutcome && (
         <p className="hint">
           {liveMode
-            ? "Signed 1 vote per wallet. Round end is scheduled on-chain with Somnia Reactivity (" +
+            ? "Signed 1 vote per wallet. Ballots stay blind until Somnia Reactivity ends the round (" +
               ROUND_SECONDS +
               "s demo window)"
-            : `Demo clock compresses 5:00 → ${ROUND_SECONDS}s`}
+            : `Demo clock compresses 5:00 → ${ROUND_SECONDS}s · ballots stay blind until the clock hits zero`}
           {onOpenRules && (
             <>
               {" · "}
@@ -203,19 +205,28 @@ export function RoundPanel({
         </p>
       )}
 
-      <div className="bars">
-        {(["bid", "ask", "hold"] as Vote[]).map((k) => (
-          <div key={k} className={`bar-row ${k} ${winner === k ? "won" : ""}`}>
-            <span className="bar-vote">
-              <VoteMark vote={k} />
-            </span>
-            <div className="track">
-              <i style={{ width: `${totalVotes ? (votes[k] / totalVotes) * 100 : 0}%` }} />
+      {phase === "voting" ? (
+        <div className="blind-tally">
+          <strong>
+            {votedCount} {votedCount === 1 ? "wallet" : "wallets"} voted
+          </strong>
+          <em>Choices hidden until the round ends</em>
+        </div>
+      ) : (
+        <div className="bars">
+          {(["bid", "ask", "hold"] as Vote[]).map((k) => (
+            <div key={k} className={`bar-row ${k} ${winner === k ? "won" : ""}`}>
+              <span className="bar-vote">
+                <VoteMark vote={k} />
+              </span>
+              <div className="track">
+                <i style={{ width: `${totalVotes ? (votes[k] / totalVotes) * 100 : 0}%` }} />
+              </div>
+              <em>{votes[k]}</em>
             </div>
-            <em>{votes[k]}</em>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {phase === "voting" && (
         <>

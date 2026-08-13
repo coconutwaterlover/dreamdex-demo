@@ -213,6 +213,28 @@
   gap: 0.4rem;
   margin-bottom: 0.75rem;
 }
+.blind-tally {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.blind-tally strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.blind-tally em {
+  font-style: normal;
+  color: var(--mute);
+  font-size: 0.75rem;
+}
 .bar-row {
   display: grid;
   grid-template-columns: 5.2rem 1fr 2rem;

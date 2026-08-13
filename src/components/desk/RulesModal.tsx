@@ -35,7 +35,8 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           <p>
             The house owner keeps the funds. Visitors never touch them. They only vote{" "}
             <strong>Bid</strong>, <strong>Ask</strong>, or <strong>Hold</strong> — one signed
-            ballot per wallet.
+            ballot per wallet. Ballots stay <strong>blind</strong> while the window is open:
+            nobody sees the running tally or anyone else’s choice until the round ends.
           </p>
           <p>
             When Somnia <strong>Reactivity</strong> fires the scheduled callback, the{" "}

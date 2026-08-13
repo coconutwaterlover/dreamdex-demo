@@ -62,6 +62,7 @@ export type RoundSnapshot = {
   remaining: number;
   tally: VoteTally;
   ballots: RoundBallot[];
+  votedCount: number;
   winner: Vote | null;
   txHash: string | null;
   error: string | null;

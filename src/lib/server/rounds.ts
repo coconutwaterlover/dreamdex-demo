@@ -2,7 +2,7 @@ import type { Address } from "viem";
 import { HOUSE_OWNER_ADDRESS, OPERATOR_REGISTRY, PLACE_ORDER_FOR, SESSION_ADDRESS, isDeskBadgeConfigured } from "@/lib/chain/constants";
 import { operatorRegistryAbi } from "@/lib/chain/abi";
 import { normalizePlayerName } from "@/lib/desk/name";
-import { ROUND_SECONDS, tallyWinner } from "@/lib/desk/round";
+import { EMPTY_TALLY, ROUND_SECONDS, tallyWinner } from "@/lib/desk/round";
 import { scoreDelta } from "@/lib/desk/scoring";
 import type { RoundBallot, RoundSnapshot, ScoreDelta, Vote, VoteTally } from "@/lib/desk/types";
 import { hasBadge, readBoard, syncBoard } from "./badge";
@@ -99,8 +99,9 @@ async function snapshot(round: StoredRound | null): Promise<RoundSnapshot> {
       status: "idle",
       endsAt: null,
       remaining: 0,
-      tally: { bid: 0, ask: 0, hold: 0 },
+      tally: EMPTY_TALLY,
       ballots: [],
+      votedCount: 0,
       winner: null,
       txHash: null,
       error: null,
@@ -110,13 +111,15 @@ async function snapshot(round: StoredRound | null): Promise<RoundSnapshot> {
       ...emptyBadgeFields(),
     };
   }
+  const blind = round.status === "voting";
   return {
     id: round.id,
     status: round.status,
     endsAt: round.endsAt,
     remaining: remainingOf(round),
-    tally: tallyOf(round.votes),
-    ballots: ballotsOf(round),
+    tally: blind ? EMPTY_TALLY : tallyOf(round.votes),
+    ballots: blind ? [] : ballotsOf(round),
+    votedCount: round.votes.size,
     winner: round.winner,
     txHash: round.txHash,
     error: round.error,

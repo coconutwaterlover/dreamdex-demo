@@ -26,7 +26,7 @@ import type {
   VoteTally,
   Voter,
 } from "@/lib/desk/types";
-import { voteMessage } from "@/lib/desk/vote";
+import { persistMyVote, restoreMyVote, voteMessage } from "@/lib/desk/vote";
 import { boardToVoters, useDeskBadges } from "./useDeskBadges";
 
 type HouseActions = {
@@ -79,6 +79,7 @@ export function useDeskRound(house: HouseActions) {
   const [executeHash, setExecuteHash] = useState<string | null>(null);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [liveBallots, setLiveBallots] = useState<RoundSnapshot["ballots"]>([]);
+  const [votedCount, setVotedCount] = useState(0);
   const [scoreDeltas, setScoreDeltas] = useState<ScoreDelta[]>([]);
   const [mintNotice, setMintNotice] = useState<MintNotice | null>(null);
   const [playerName, setPlayerName] = useState("");
@@ -150,7 +151,7 @@ export function useDeskRound(house: HouseActions) {
       return;
     }
     const mine = liveBallots.find((b) => b.address.toLowerCase() === you.toLowerCase());
-    setMyVote(mine?.vote ?? null);
+    if (mine?.vote) setMyVote(mine.vote);
   }, [house.address, liveBallots, liveMode]);
 
   const clearTimers = useCallback(() => {
@@ -213,6 +214,7 @@ export function useDeskRound(house: HouseActions) {
     scoredRef.current = snap.id;
     setWinner(snap.winner);
     setVotes(snap.tally);
+    setVotedCount(snap.votedCount ?? snap.ballots.length);
     setSecs(0);
     setLiveBallots(snap.ballots);
     setExecuteHash(snap.txHash);
@@ -277,10 +279,14 @@ export function useDeskRound(house: HouseActions) {
     async (snap: RoundSnapshot) => {
       if (snap.mid) setMid(snap.mid);
       if (snap.id) {
+        if (snap.id !== roundRef.current) {
+          setMyVote(restoreMyVote(snap.id));
+        }
         setRound(snap.id);
         roundRef.current = snap.id;
       }
       setVotes(snap.tally);
+      setVotedCount(snap.votedCount ?? snap.ballots.length);
       setWinner(snap.winner);
       setLiveBallots(snap.ballots);
       if (snap.subscriptionId || snap.scheduleTxHash) {
@@ -289,6 +295,10 @@ export function useDeskRound(house: HouseActions) {
       if (snap.status === "voting") {
         setPhase("voting");
         setSecs(snap.remaining);
+        const id = snap.id;
+        if (id) {
+          setMyVote((prev) => prev ?? restoreMyVote(id));
+        }
         return;
       }
       if (snap.status === "resolving") {
@@ -375,6 +385,7 @@ export function useDeskRound(house: HouseActions) {
           signature,
           name: playerName || undefined,
         });
+        persistMyVote(roundRef.current || round, v);
         setMyVote(v);
         log(`You voted ${v.toUpperCase()}`, "live");
         await applyLiveSnapshot(snap);
@@ -386,7 +397,11 @@ export function useDeskRound(house: HouseActions) {
       return;
     }
     setMyVote(v);
-    setVotes((prev) => ({ ...prev, [v]: prev[v] + 1 }));
+    setVotes((prev) => {
+      const next = { ...prev, [v]: prev[v] + 1 };
+      setVotedCount(next.bid + next.ask + next.hold);
+      return next;
+    });
     setVoters((list) => list.map((u) => (u.id === "you" ? { ...u, vote: v } : u)));
     log(`You voted ${v.toUpperCase()}`, "live");
   }
@@ -399,6 +414,7 @@ export function useDeskRound(house: HouseActions) {
     setPhase("voting");
     setSecs(ROUND_SECONDS);
     setVotes({ bid: 2, ask: 1, hold: 1 });
+    setVotedCount(4 + (opts?.preVote ? 1 : 0));
     setMyVote(opts?.preVote ?? null);
     setWinner(null);
     setSignProgress(0);
@@ -425,7 +441,9 @@ export function useDeskRound(house: HouseActions) {
     crowdRef.current = setInterval(() => {
       setVotes((prev) => {
         const pick = pickCrowdVote();
-        return { ...prev, [pick]: prev[pick] + 1 };
+        const next = { ...prev, [pick]: prev[pick] + 1 };
+        setVotedCount(next.bid + next.ask + next.hold);
+        return next;
       });
       setVoters((list) => {
         const undecided = list.filter((u) => u.id !== "you" && !u.vote);
@@ -460,6 +478,8 @@ export function useDeskRound(house: HouseActions) {
         scoredRef.current = null;
         resolvingRef.current = false;
         waitingReactivityRef.current = false;
+        setVotedCount(0);
+        setLiveBallots([]);
         setSchedule(NO_SCHEDULE);
         const snap = await openRoundApi();
         setRoundMid(snap.mid || mid);
@@ -491,10 +511,7 @@ export function useDeskRound(house: HouseActions) {
     try {
       const snap = await fetchRound();
       if (snap.status === "voting") {
-        setVotes(snap.tally);
-        setSecs(snap.remaining);
-        setLiveBallots(snap.ballots);
-        if (snap.mid) setMid(snap.mid);
+        await applyLiveSnapshot(snap);
         if (snap.remaining > 0) return;
         setPhase("resolving");
         setBusy(true);
@@ -505,7 +522,7 @@ export function useDeskRound(house: HouseActions) {
         return;
       }
       if (snap.status === "resolving") {
-        setPhase("signing");
+        await applyLiveSnapshot(snap);
         setBusy(true);
         return;
       }
@@ -627,6 +644,7 @@ export function useDeskRound(house: HouseActions) {
     setBusy(false);
     setSecs(ROUND_SECONDS);
     setVotes(EMPTY_TALLY);
+    setVotedCount(0);
     setMyVote(null);
     setWinner(null);
     setSignProgress(0);
@@ -661,6 +679,7 @@ export function useDeskRound(house: HouseActions) {
       clearTimers();
       setPhase("boot");
       setVotes(EMPTY_TALLY);
+      setVotedCount(0);
       setMyVote(null);
       setWinner(null);
       setRound(0);
@@ -700,7 +719,9 @@ export function useDeskRound(house: HouseActions) {
   const needsName = liveMode && !!house.address && !badges.hasBadge(house.address);
   const canCastVote = !liveMode || (!!house.isConnected && (!needsName || isPlayerName(playerName)));
 
-  const totalVotes = votes.bid + votes.ask + votes.hold || 1;
+  const revealedVotes = votes.bid + votes.ask + votes.hold;
+  const totalVotes = revealedVotes || 1;
+  const ballotsCast = liveMode ? votedCount : revealedVotes;
   const bid = +(mid - 0.0001).toFixed(4);
   const ask = +(mid + 0.0001).toFixed(4);
   const levels = [
@@ -754,6 +775,7 @@ export function useDeskRound(house: HouseActions) {
     executeHash,
     executeError,
     liveBallots,
+    votedCount: ballotsCast,
     schedule,
     voters: liveVoters ?? voters,
     playerName,
