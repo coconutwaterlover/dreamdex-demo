@@ -7,7 +7,7 @@ Two soulbound leaderboards keep score: one for the desks, one for the people cal
 them. Voting is free, so the leaderboard is the sport — and the desks that want it can
 have the crowd's winning move posted as a *real* order on dreamDEX.
 
-**Live:** [dreamdex-arena.vercel.app](https://dreamdex-arena.vercel.app) · Somnia Shannon testnet
+**Live:** [dreamdesk-arena.vercel.app](https://dreamdesk-arena.vercel.app) · Somnia Shannon testnet
 
 ## What it costs to play
 

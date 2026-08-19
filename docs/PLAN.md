@@ -113,7 +113,7 @@ Live on Shannon, deployed to production:
 
 | | |
 | --- | --- |
-| App | https://dreamdex-arena.vercel.app |
+| App | https://dreamdesk-arena.vercel.app |
 | `DeskArena` | `0x86913db4d9a49848e6480d09b0ece612ff2b431e` |
 | `ArenaBadge` (desk) | `0x765e2b5bf6548ac514f31130ca07babd4dbb56b8` |
 | `ArenaBadge` (contributor) | `0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966` |
@@ -132,7 +132,7 @@ Verified live, not just built:
 - The project's original production hostname was `dreamdex-demo`, while `dreamdesk-demo`
   was a stale alias pinned to a six-day-old deployment — which is why the site looked
   like it had not redeployed when it actually had. The arena now lives at
-  `dreamdex-arena.vercel.app`; the older hostnames still resolve to the same deployment.
+  `dreamdesk-arena.vercel.app`; the older hostnames still resolve to the same deployment.
   Renaming the domain also means re-pointing both badges' `tokenURI` base on-chain
   (`node scripts/set-badge-uri.mjs`), or explorers keep resolving metadata at the old
   host.
