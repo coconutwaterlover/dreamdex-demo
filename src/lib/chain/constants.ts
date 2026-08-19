@@ -18,7 +18,6 @@ export const REDUCE_ORDER_FOR = "0x364c2587" as const satisfies Hex;
 export const OPERATOR_SELECTORS = [PLACE_ORDER_FOR, CANCEL_ORDER_FOR, REDUCE_ORDER_FOR] as const;
 
 export const DEFAULT_RPC = "https://api.infra.testnet.somnia.network";
-export const DEFAULT_DREAMDEX_API = "https://stg.api.dreamdex.io/v0";
 export const SHANNON_EXPLORER = "https://shannon-explorer.somnia.network";
 
 /** Where a contributor goes to trade their own call for real. */
@@ -63,7 +62,6 @@ export const SESSION_ADDRESS = configured(
   SHANNON_DEPLOYMENT.sessionKey,
 );
 export const SOMNIA_RPC_URL = process.env.NEXT_PUBLIC_SOMNIA_RPC_URL ?? DEFAULT_RPC;
-export const DREAMDEX_API_URL = process.env.DREAMDEX_API_URL ?? DEFAULT_DREAMDEX_API;
 
 export const ROUND_SECONDS = 300;
 export const SEASON_ROUNDS = 288;

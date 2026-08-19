@@ -52,7 +52,10 @@ export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compa
               </a>
               {isOwner && <span className="tag tag-you">yours</span>}
               {desk.armed ? (
-                <span className="tag tag-armed" title="Owner granted the session key — winning moves also hit the real DreamDEX book">
+                <span
+                  className="tag tag-armed"
+                  title="Owner granted the session key, so this desk also places a real minimum-size order on dreamDEX with its own funds. The leaderboard still scores the paper book."
+                >
                   live orders
                 </span>
               ) : desk.wantsLive ? (

@@ -98,6 +98,56 @@ Depends on two contracts it does not own:
 
 ---
 
+## How dreamDEX is used
+
+Every touch goes through dreamDEX's **contracts**, not its REST API — the arena prices
+its own rounds on-chain, so an HTTP quote could only disagree with the block it settles in.
+
+| # | What | Where |
+| --- | --- | --- |
+| 1 | **The price that ranks every desk.** `getBookLevels` on the SOMI:USDso SpotPool, called from Solidity inside the transaction that settles the round. | `contracts/DeskArena.sol` → `_readMid()` |
+| 2 | **Granting the session key.** The owner calls `setOperatorApprovalGlobal` on the `OperatorPermissionsRegistry` for `placeOrderFor` / `cancelOrderFor` / `reduceOrderFor`. | `src/hooks/useArenaActions.ts` → `grantSessionKey` |
+| 3 | **Verifying that grant.** The arena reads `isGloballyApproved` itself, so a desk is only labelled *live* when the approval genuinely exists — an owner cannot fake it with a flag. The keeper re-checks `isOperatorAuthorized` on the pool before it tries. | `contracts/DeskArena.sol` → `deskIsArmed`, `src/lib/server/execute.ts` |
+| 4 | **Placing the real order.** `placeOrderFor` on the SpotPool, with `getPoolParams` for tick/lot/minQuantity, `getAutoPullRequirement` to discover which token the pool will pull and how much, and PostOnly repriced off the live book so it rests instead of taking. | `src/lib/server/execute.ts` → `executeDeskMove` |
+
+The order the arena places is owned by, and settles to, the **desk owner** — the session
+key only ever gets to place it.
+
+### What is real, and what is paper
+
+This is the single most misread thing about the app, so in full.
+
+**One vote produces two independent effects.** For an armed desk, the same winning move
+runs down two tracks that never talk to each other:
+
+| | What actually moves | Size | Decides the leaderboard? |
+| --- | --- | --- | --- |
+| **Paper book** — inside `DeskArena` | a number in the contract | **1,000 SOMI** per round | **Yes.** This *is* the leaderboard. |
+| **Real order** — on the SpotPool, via the keeper | the owner's actual USDso / SOMI | **1 SOMI** — the pool's `minQuantity` | **No.** |
+
+And the price both are measured against is real either way: the mid comes off the live
+dreamDEX book, read on-chain.
+
+So an armed desk genuinely trades — a Sell really rests on the book, really fills, and the
+owner really receives USDso in their own wallet. But **its rank comes from the paper book,
+not from those fills**, and the real leg is a *minimum-size* order rather than a scaled
+copy of the paper position.
+
+Stated as plainly as possible: **the arena is a paper trading competition that also fires a
+small real order as proof the session key works.** It is not yet a real-money competition.
+
+**Why it is built this way.** If a desk has to be capital-backed to compete, the leaderboard
+ranks bankrolls instead of calls, and you get a handful of desks instead of a crowd — the
+opposite of the goal. The paper book keeps the contest free to enter and comparable across
+every desk; the session key keeps the real trading honest and demonstrable.
+
+**What would close the gap** (both listed in [Known limits](#known-limits)): size the real
+order to the paper lot so an armed desk's real exposure matches what the board says it did,
+and score armed desks on realized on-chain PnL in a second league shown beside the paper
+one — not replacing it, because armed and unarmed desks are not comparable on one axis.
+
+---
+
 ## How the primitives work
 
 This repo is a small, complete reference for three Somnia/dreamDEX primitives. Each one
@@ -370,7 +420,6 @@ exactly; a newer solc will refuse to compile `ArenaClock`.
 | `NEXT_PUBLIC_SESSION_ADDRESS` | the owner grant flow | must match the arena's `sessionKey` |
 | `SESSION_PRIVATE_KEY` | the keeper only | **server-only** — never prefix it `NEXT_PUBLIC_` |
 | `NEXT_PUBLIC_APP_URL` | badge `tokenURI` base | the public origin |
-| `DREAMDEX_API_URL` | display quote fallback | optional |
 
 Without `SESSION_PRIVATE_KEY` the app runs read-only: the clock still ticks, voting,
 badges and both leaderboards all work — only real-order mirroring and the tick-healing
@@ -416,6 +465,15 @@ testnet showcase:
 - **`MAX_DESKS` is 256.** `tick()` walks every desk in one Reactivity callback, so the
   arena is capped to keep that inside the callback's gas limit. Past that it needs a
   cursor that resumes across beats.
+- **Real orders don't feed the leaderboard.** An armed desk places genuine orders, but
+  its rank still comes from the paper book. The fix is a second league scored on the
+  owner's realized on-chain PnL, shown next to the paper one rather than replacing it —
+  armed and unarmed desks aren't comparable on the same axis.
+- **The real order is minimum size, the paper trade is not.** `executeDeskMove` places
+  `minQuantity` (1 SOMI) while the paper book moves a 1,000 SOMI lot, so an armed desk's
+  real exposure is ~1/1000th of what the leaderboard says it did. Sizing the real order to
+  the paper lot is a one-line change in `execute.ts`; it is left small deliberately while
+  this is a demo, because the order spends the owner's own funds.
 - **The keeper's mirror ledger is in memory.** Which `(round, desk)` pairs it already
   mirrored lives in the process, so a cold start can re-attempt one. `placeOrderFor` is
   PostOnly at the touch, so the worst case is a duplicate resting order, not a double

@@ -129,15 +129,16 @@ export function HowItWorks() {
                 <div>
                   <dt>The 1,000 USDso book</dt>
                   <dd>
-                    A <strong>paper</strong> book — nobody funds it. Every desk gets the same figure so
-                    profits are comparable.
+                    A <strong>paper</strong> book — nobody funds it. Every desk gets the same figure, which
+                    is what makes the leaderboard a contest of calls rather than of bankrolls.
                   </dd>
                 </div>
                 <div>
                   <dt>Real orders (optional)</dt>
                   <dd>
-                    Only if you grant a session key. That trades your own funds, from your own wallet, and
-                    you can revoke it any time.
+                    Only if you grant a session key. A desk marked <em>live orders</em> also places a real,
+                    minimum-size order on dreamDEX — your own funds, your own wallet, revocable any time.
+                    It is proof the session key works; the leaderboard still scores the paper book.
                   </dd>
                 </div>
               </dl>
