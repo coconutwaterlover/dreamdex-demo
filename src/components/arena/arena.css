@@ -340,6 +340,9 @@
 
 /* ------------------------------------------------------------------ desk card */
 
+.arena-shell {
+  overflow-x: clip;
+}
 .deskcard,
 .panel,
 .rail-card,
@@ -620,6 +623,11 @@
   font-size: 1.15rem;
   font-weight: 600;
 }
+.rail-card,
+.you {
+  min-width: 0;
+  overflow: hidden;
+}
 .you h3,
 .rail-card h3,
 .panel h3,
@@ -682,6 +690,10 @@
 
 /* ------------------------------------------------------------------ tables */
 
+.board-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
 .board {
   width: 100%;
   border-collapse: collapse;

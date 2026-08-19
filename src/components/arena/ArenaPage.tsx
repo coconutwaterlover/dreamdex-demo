@@ -177,6 +177,7 @@ export function ArenaPage() {
                 me={address}
                 collection={feed.addresses.contributorBadge}
                 limit={8}
+                compact
               />
             </section>
             <HowItWorks />
