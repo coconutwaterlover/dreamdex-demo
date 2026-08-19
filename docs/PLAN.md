@@ -107,8 +107,31 @@ prompt and the bot-builder link. Voting is the funnel, trading is the exit.
 5. **Polish** — streaks, seasons, onramp links, README "how the primitives work".
 6. **Ship** — push branch, merge master, verify the Vercel production deploy.
 
-## 5. Open item
+## 5. Shipped
 
-Vercel env vars for the new contract addresses need to be set on the project before
-production is green. I'll hand over an exact paste-ready block at milestone 2, as soon
-as the addresses exist.
+Live on Shannon, deployed to production:
+
+| | |
+| --- | --- |
+| App | https://dreamdesk-demo.vercel.app (and https://dreamdex-demo.vercel.app) |
+| `DeskArena` | `0x86913db4d9a49848e6480d09b0ece612ff2b431e` |
+| `ArenaBadge` (desk) | `0x765e2b5bf6548ac514f31130ca07babd4dbb56b8` |
+| `ArenaBadge` (contributor) | `0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966` |
+| `ArenaClock` | `0x5d299bd6f63546b14e3b4367974ad94819e1a643` |
+
+Verified live, not just built:
+
+- The clock has re-armed itself every five minutes since deploy, through a container
+  restart on our side. It costs about 0.08 STT/hour, so its 45 STT funds it for weeks.
+- An armed desk's Sell became a real `placeOrderFor` owned by the desk owner —
+  [tx](https://shannon-explorer.somnia.network/tx/0xb2ecdfd59c186b5183045e261a6657acb3058356c436472abac80ca9fd86b042).
+- `npm run arena:e2e` passes end to end against the real chain.
+
+### Two deploy gotchas worth remembering
+
+- The production hostname is `dreamdex-demo` (dream**dex**); `dreamdesk-demo` was a
+  stale alias pinned to a six-day-old deployment, which is why the site looked like it
+  had not redeployed when it actually had. Both now point at production.
+- The project carried env vars from the previous build — an old `DESK_BADGE_ADDRESS`
+  and a *different* session key — which silently overrode the committed defaults. They
+  have been rewritten to the current deployment.
