@@ -59,6 +59,17 @@ export function emptySnapshot(): ArenaSnapshot {
   };
 }
 
+const PAGE = BigInt(250);
+/** Board getters are paginated on-chain; walk them so a full board is never truncated. */
+async function readAllPages<T>(read: (offset: bigint, limit: bigint) => Promise<readonly T[]>) {
+  const all: T[] = [];
+  for (let offset = BigInt(0); ; offset += PAGE) {
+    const page = await read(offset, PAGE);
+    all.push(...page);
+    if (page.length < Number(PAGE)) return all;
+  }
+}
+
 /** Desks rank on profit; retired desks keep their number but sink below the living. */
 function rankDesks(rows: Omit<DeskRow, "rank">[]): DeskRow[] {
   const sorted = [...rows].sort((a, b) => {
@@ -89,7 +100,9 @@ export async function readArena(): Promise<ArenaSnapshot> {
 
   const [rawDesks, rawContributors] = await Promise.all([
     client.readContract({ ...arena, functionName: "deskBoard", args: [roundId] }),
-    client.readContract({ ...arena, functionName: "contributorBoard", args: [BigInt(0), BigInt(500)] }),
+    readAllPages((offset, limit) =>
+      client.readContract({ ...arena, functionName: "contributorBoard", args: [offset, limit] }),
+    ),
   ]);
 
   const desks = rankDesks(
@@ -125,12 +138,15 @@ export async function readArena(): Promise<ArenaSnapshot> {
   const handles = new Map<string, { handle: string; tokenId: number }>();
   if (CONTRIBUTOR_BADGE_ADDRESS) {
     try {
-      const badges = await client.readContract({
-        address: CONTRIBUTOR_BADGE_ADDRESS,
-        abi: arenaBadgeAbi,
-        functionName: "board",
-        args: [BigInt(0), BigInt(500)],
-      });
+      const badgeAddress: Address = CONTRIBUTOR_BADGE_ADDRESS;
+      const badges = await readAllPages((offset, limit) =>
+        client.readContract({
+          address: badgeAddress,
+          abi: arenaBadgeAbi,
+          functionName: "board",
+          args: [offset, limit],
+        }),
+      );
       for (const b of badges) {
         handles.set(b.wallet.toLowerCase(), { handle: b.handle, tokenId: Number(b.tokenId) });
       }

@@ -1,5 +1,11 @@
 import { type Address, type Hex } from "viem";
 
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+export function isHexAddress(value: string | undefined): value is Address {
+  return !!value && /^0x[a-fA-F0-9]{40}$/.test(value) && value.toLowerCase() !== ZERO;
+}
+
 export const OPERATOR_REGISTRY = "0x15C7e8CE38F021c5b45d098AaD788f63090bF20A" as const satisfies Address;
 
 /** SOMI:USDso SpotPool on Shannon — the arena marks every desk against this book. */
@@ -19,26 +25,48 @@ export const SHANNON_EXPLORER = "https://shannon-explorer.somnia.network";
 export const DREAMDEX_APP_URL = "https://app.dreamdex.io";
 export const DREAMDEX_DOCS_URL = "https://docs.dreamdex.io";
 
-export const ARENA_ADDRESS = process.env.NEXT_PUBLIC_ARENA_ADDRESS as Address | undefined;
-export const DESK_BADGE_ADDRESS = process.env.NEXT_PUBLIC_DESK_BADGE_ADDRESS as Address | undefined;
-export const CONTRIBUTOR_BADGE_ADDRESS = process.env.NEXT_PUBLIC_CONTRIBUTOR_BADGE_ADDRESS as
-  | Address
-  | undefined;
-export const ARENA_CLOCK_ADDRESS = process.env.NEXT_PUBLIC_ARENA_CLOCK_ADDRESS as Address | undefined;
+/**
+ * The live Shannon deployment. These are public contract addresses, not secrets, so
+ * they ship as defaults — the app is fully readable with no environment at all, and
+ * an env var still wins for anyone pointing at their own deployment.
+ */
+export const SHANNON_DEPLOYMENT = {
+  arena: "0x86913db4d9a49848e6480d09b0ece612ff2b431e",
+  deskBadge: "0x765e2b5bf6548ac514f31130ca07babd4dbb56b8",
+  contributorBadge: "0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966",
+  clock: "0x5d299bd6f63546b14e3b4367974ad94819e1a643",
+  sessionKey: "0x4b051B5D2038B5054f73020bE1F99b738D539580",
+} as const;
+
+function configured(value: string | undefined, fallback: string): Address | undefined {
+  const chosen = isHexAddress(value) ? value : fallback;
+  return isHexAddress(chosen) ? chosen : undefined;
+}
+
+export const ARENA_ADDRESS = configured(process.env.NEXT_PUBLIC_ARENA_ADDRESS, SHANNON_DEPLOYMENT.arena);
+export const DESK_BADGE_ADDRESS = configured(
+  process.env.NEXT_PUBLIC_DESK_BADGE_ADDRESS,
+  SHANNON_DEPLOYMENT.deskBadge,
+);
+export const CONTRIBUTOR_BADGE_ADDRESS = configured(
+  process.env.NEXT_PUBLIC_CONTRIBUTOR_BADGE_ADDRESS,
+  SHANNON_DEPLOYMENT.contributorBadge,
+);
+export const ARENA_CLOCK_ADDRESS = configured(
+  process.env.NEXT_PUBLIC_ARENA_CLOCK_ADDRESS,
+  SHANNON_DEPLOYMENT.clock,
+);
 
 export const HOUSE_OWNER_ADDRESS = process.env.NEXT_PUBLIC_HOUSE_OWNER_ADDRESS as Address | undefined;
-export const SESSION_ADDRESS = process.env.NEXT_PUBLIC_SESSION_ADDRESS as Address | undefined;
+export const SESSION_ADDRESS = configured(
+  process.env.NEXT_PUBLIC_SESSION_ADDRESS,
+  SHANNON_DEPLOYMENT.sessionKey,
+);
 export const SOMNIA_RPC_URL = process.env.NEXT_PUBLIC_SOMNIA_RPC_URL ?? DEFAULT_RPC;
 export const DREAMDEX_API_URL = process.env.DREAMDEX_API_URL ?? DEFAULT_DREAMDEX_API;
 
 export const ROUND_SECONDS = 300;
 export const SEASON_ROUNDS = 288;
-
-const ZERO = "0x0000000000000000000000000000000000000000";
-
-export function isHexAddress(value: string | undefined): value is Address {
-  return !!value && /^0x[a-fA-F0-9]{40}$/.test(value) && value.toLowerCase() !== ZERO;
-}
 
 export function isArenaConfigured(): boolean {
   return isHexAddress(ARENA_ADDRESS);
