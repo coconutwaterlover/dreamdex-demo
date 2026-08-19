@@ -1,8 +1,10 @@
 import { formatUnits, parseUnits } from "viem";
 import { DREAMDEX_API_URL, SOMI_USDSO_POOL } from "@/lib/chain/constants";
 import { poolAbi } from "@/lib/chain/pool-abi";
-import { INITIAL_MID } from "@/lib/desk/round";
 import { getPublicClient } from "./session";
+
+/** Last-resort mark when neither the HTTP quote nor the on-chain book answers. */
+const INITIAL_MID = 0.0875;
 
 export type MarketQuote = {
   last: number;

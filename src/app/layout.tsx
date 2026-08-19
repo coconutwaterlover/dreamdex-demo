@@ -18,9 +18,9 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DreamDesk — Fruit Stall",
+  title: "DreamDesk Arena",
   description:
-    "Owner grants a hot key. Crowd votes Bid / Ask / Hold. The session key executes; custody stays cold.",
+    "Open a desk, let the crowd vote its next move every five minutes, and climb two soulbound leaderboards on Somnia.",
 };
 
 export default function RootLayout({

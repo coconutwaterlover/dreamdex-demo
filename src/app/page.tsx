@@ -1,7 +1,5 @@
-"use client";
-
-import { DreamDesk } from "@/components/desk/DreamDesk";
+import { ArenaPage } from "@/components/arena/ArenaPage";
 
 export default function Home() {
-  return <DreamDesk />;
+  return <ArenaPage />;
 }

@@ -1,10 +1,6 @@
 import { BaseError, ContractFunctionRevertedError, decodeErrorResult, formatUnits, zeroAddress } from "viem";
-import {
-  HOUSE_OWNER_ADDRESS,
-  PLACE_ORDER_FOR,
-  SESSION_ADDRESS,
-  SOMI_USDSO_POOL,
-} from "@/lib/chain/constants";
+import type { Address } from "viem";
+import { PLACE_ORDER_FOR, SESSION_ADDRESS, SOMI_USDSO_POOL } from "@/lib/chain/constants";
 import {
   erc20Abi,
   NATIVE_BUY_GAS,
@@ -12,12 +8,11 @@ import {
   ORDER_TYPE_POST_ONLY,
   poolAbi,
 } from "@/lib/chain/pool-abi";
-import type { Vote } from "@/lib/desk/types";
 import { fetchOnChainBook, quoteToRawPrice } from "./market";
 import { getPublicClient, getSessionWallet, isExecutorConfigured, writeSessionContract } from "./session";
 
 export type ExecuteResult =
-  | { ok: true; skipped: true; reason: "hold" }
+  | { ok: true; skipped: true; reason: string }
   | { ok: true; skipped: false; txHash: `0x${string}` }
   | { ok: false; blocked: true; error: string }
   | { ok: false; blocked: false; error: string };
@@ -84,25 +79,25 @@ function decodeExecuteError(err: unknown): string {
       if (name === "PostOnlyWouldCross") return "PostOnlyWouldCross — price would take; repriced next round from the live book";
       if (name === "OnlyApprovedContracts") return "OnlyApprovedContracts";
       if (name === "ERC20InsufficientBalance") {
-        return "House owner USDso balance is too low for this bid — fund the owner wallet";
+        return "Desk owner USDso balance is too low for this bid — fund the owner wallet";
       }
       if (name === "ERC20InsufficientAllowance") {
-        return "House owner must Approve USDso for the pool";
+        return "Desk owner must Approve USDso for the pool";
       }
       if (name) return name;
     }
   }
   const sel = selectorOf(err);
   if (sel === "0x7cf05fcb") return "PostOnlyWouldCross — bid was through the ask";
-  if (sel === "0xe450d38c") return "House owner USDso balance is too low for this bid — fund the owner wallet";
-  if (sel === "0xfb8f41b2") return "House owner must Approve USDso for the pool";
+  if (sel === "0xe450d38c") return "Desk owner USDso balance is too low for this bid — fund the owner wallet";
+  if (sel === "0xfb8f41b2") return "Desk owner must Approve USDso for the pool";
   if (sel === "0x3fb0ba2e") return "OnlyApprovedContracts";
   if (sel) {
     try {
       const decoded = decodeErrorResult({ abi: [...poolAbi, ...erc20Abi], data: sel });
       if (decoded.errorName === "PostOnlyWouldCross") return "PostOnlyWouldCross — bid was through the ask";
       if (decoded.errorName === "ERC20InsufficientBalance") {
-        return "House owner USDso balance is too low for this bid — fund the owner wallet";
+        return "Desk owner USDso balance is too low for this bid — fund the owner wallet";
       }
       return decoded.errorName;
     } catch {
@@ -117,25 +112,28 @@ function isBlockedError(err: unknown): boolean {
   return /OnlyApprovedContracts/i.test(text);
 }
 
-export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> {
+/**
+ * Mirrors one armed desk's winning move onto the real DreamDEX book. The order is
+ * owned by, and settles to, the desk owner — the session key only gets to place it.
+ */
+export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Promise<ExecuteResult> {
   try {
-    if (winner === "hold") return { ok: true, skipped: true, reason: "hold" };
     if (!isExecutorConfigured()) {
       return { ok: false, blocked: false, error: "SESSION_PRIVATE_KEY is not set" };
     }
-    if (!HOUSE_OWNER_ADDRESS || !SESSION_ADDRESS) {
-      return { ok: false, blocked: false, error: "House owner / session address missing" };
+    if (!SESSION_ADDRESS) {
+      return { ok: false, blocked: false, error: "Session address missing" };
     }
 
     const publicClient = getPublicClient();
     const wallet = getSessionWallet();
-    const isBid = winner === "bid";
+    const isBid = side === "bid";
 
     const authorized = await publicClient.readContract({
       address: SOMI_USDSO_POOL,
       abi: poolAbi,
       functionName: "isOperatorAuthorized",
-      args: [HOUSE_OWNER_ADDRESS, wallet.account.address, PLACE_ORDER_FOR],
+      args: [owner, wallet.account.address, PLACE_ORDER_FOR],
     });
     if (!authorized) {
       return { ok: false, blocked: true, error: "OnlyApprovedContracts" };
@@ -157,7 +155,7 @@ export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> 
       address: SOMI_USDSO_POOL,
       abi: poolAbi,
       functionName: "getAutoPullRequirement",
-      args: [HOUSE_OWNER_ADDRESS, isBid, price, quantity, BigInt(0)],
+      args: [owner, isBid, price, quantity, BigInt(0)],
     });
     const [inputToken, requiredAmount] = pull;
     const nativeInput =
@@ -172,13 +170,13 @@ export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> 
           address: inputToken,
           abi: erc20Abi,
           functionName: "balanceOf",
-          args: [HOUSE_OWNER_ADDRESS],
+          args: [owner],
         }),
         publicClient.readContract({
           address: inputToken,
           abi: erc20Abi,
           functionName: "allowance",
-          args: [HOUSE_OWNER_ADDRESS, SOMI_USDSO_POOL],
+          args: [owner, SOMI_USDSO_POOL],
         }),
       ]);
       if (allowance < requiredAmount) {
@@ -188,7 +186,7 @@ export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> 
         return {
           ok: false,
           blocked: false,
-          error: `House owner USDso balance ${formatUnits(balance, 18)} < ${formatUnits(requiredAmount, 18)} needed for this bid`,
+          error: `Desk owner USDso balance ${formatUnits(balance, 18)} < ${formatUnits(requiredAmount, 18)} needed for this bid`,
         };
       }
     } else if (value > BigInt(0)) {
@@ -203,7 +201,7 @@ export async function executeResolvedVote(winner: Vote): Promise<ExecuteResult> 
     }
 
     const args = [
-      HOUSE_OWNER_ADDRESS,
+      owner,
       isBid,
       BigInt(0),
       price,
