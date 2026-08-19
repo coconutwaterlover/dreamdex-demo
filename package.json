@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy:clock": "node scripts/deploy-round-clock.mjs",
-    "deploy:badge": "node scripts/deploy-desk-badge.mjs"
+    "compile": "node scripts/compile.mjs",
+    "abis": "node scripts/build-abis.mjs",
+    "deploy:arena": "node scripts/deploy-arena.mjs",
+    "arena:e2e": "node scripts/arena-e2e.mjs"
   },
   "dependencies": {
     "@somnia-chain/reactivity": "^0.2.1",
@@ -24,7 +26,7 @@
     "@types/node": "^22.17.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
-    "solc": "^0.8.36",
+    "solc": "0.8.30",
     "typescript": "^5.9.2"
   }
 }
