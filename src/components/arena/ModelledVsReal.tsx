@@ -105,7 +105,7 @@ export function ModelledVsReal({
                     <th className="right">Intended</th>
                     <th className="right">Placed</th>
                     <th className="right">Slip</th>
-                    <th>Result</th>
+                    <th>Order</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,7 +130,7 @@ export function ModelledVsReal({
                       <td>
                         {m.txHash ? (
                           <a href={txHref(m.txHash) ?? "#"} target="_blank" rel="noreferrer">
-                            filled tx
+                            order tx
                           </a>
                         ) : (
                           <span className="warn foot">{m.error ?? "—"}</span>
