@@ -1,491 +1,222 @@
-# DreamDesk Arena
+# Quorum
 
-A public trading arena on Somnia. **Anyone opens a desk. The crowd votes its next move
-every five minutes. The desk with the best profit wins the season.**
+**Index contracts for [dreamDEX event contracts](https://docs.dreamdex.io/developers/event-contracts).**
+Don't pick a market — pick how many of them have to be right.
 
-Two soulbound leaderboards keep score: one for the desks, one for the people calling
-them. Voting is free, so the leaderboard is the sport — and the desks that want it can
-have the crowd's winning move posted as a *real* order on dreamDEX.
+A dreamDEX event contract is one Bernoulli draw. Fifteen minutes later it paid 1 or it paid 0, and
+that is the entire distribution. Quorum buys a **slice of every live window at once**: one unit costs
+the average of the leg prices and pays the fraction of legs that win.
 
-**Live:** [dreamdesk-arena.vercel.app](https://dreamdesk-arena.vercel.app) · Somnia Shannon testnet
+There is no index token, no vault, and no oracle of its own. A unit *is* its legs, so its NAV is a sum
+over prices already resting on the order book, and buying the legs is creation while selling them is
+redemption. Nothing can trade away from fair value because nobody stands between the two.
 
-## What it costs to play
+```
+npm install
+npx tsx bots/census.ts     # read-only: what's live, what it costs, what history says
+npm run dev                # the desk, at localhost:3000
+```
 
-Nothing meaningful. This is the part people guess wrong, so plainly:
-
-| | Cost |
-| --- | --- |
-| **Vote on any desk** | Free. You pay gas, nothing else. |
-| **Open your own desk** | A **0.05 STT** bond, returned in full by `retireDesk`. |
-| **The 1,000 USDso book** | **Nobody funds it.** It is a paper book — a number in the contract, identical for every desk so profits are comparable. |
-| **Real orders** | Optional. Only if you grant a session key, and then it is *your* funds in *your* wallet, revocable at any time. |
-
-Shannon is a testnet, so the STT for the bond and the gas comes free from the
-[faucet](https://testnet.somnia.network/). Opening a desk is two clicks and one
-transaction: pick a name, sign, and the same transaction mints your soulbound desk
-badge.
-
-The 1,000 USDso is deliberately *not* real money. Making desks put up capital would rank
-bankrolls instead of calls, and would gate the thing Emre asked for — many people opening
-desks and transacting. The bond gates spam; the paper book keeps the leaderboard fair.
+Nothing above needs a key, an account, or a funded wallet.
 
 ---
 
-## Three things that are not normal
+## Does it actually work?
 
-Most "on-chain" apps quietly keep the interesting parts on a server. This one doesn't,
-and these are the three places you can check that.
+An index only reduces risk to the extent its legs disagree, and this venue's entire universe is *BTC
+or ETH, up or down*. So the interesting question is empirical, and it has an answer. Measured over the
+venue's own settled windows:
 
-### The clock has no cron and no server
-
-Somnia Reactivity only requires the **subscription owner** to hold the 32 STT sybil
-bond — and the owner can be a *contract*. So `ArenaClock` funds itself and re-arms from
-inside its own callback. Every five minutes, forever, with nothing running anywhere.
-
-It has not missed a beat since deploy, including through a container restart on the
-machine that deployed it. It burns roughly **0.08 STT/hour**, so its 45 STT funds it for
-weeks. `fireCount` on the clock is the receipt.
-
-→ [details](#2-reactivity--a-clock-that-keeps-itself-alive)
-
-### The arena reads its own price
-
-`getBookLevels` is called from Solidity, in the same transaction that settles the round.
-No oracle, no signed feed, no keeper-supplied mid. Because the order book *is* a smart
-contract, the price that ranks every desk is exactly as verifiable as the votes that
-produced it.
-
-→ [details](#3-an-on-chain-clob-you-can-read-from-a-contract)
-
-### The badges never write a score
-
-`scoreOf` reads through to the arena at call time, so a round that moves every
-leaderboard costs **zero** token writes. The only write either collection ever does is
-the mint — and that happens inside your own `createDesk` / `vote` transaction, not in a
-keeper's.
-
-→ [details](#contracts)
-
----
-
-## Live deployment
-
-Somnia Shannon (chain ID `50312`), explorer
-[shannon-explorer.somnia.network](https://shannon-explorer.somnia.network).
-
-| | Address |
-| --- | --- |
-| `DeskArena` | [`0x86913db4d9a49848e6480d09b0ece612ff2b431e`](https://shannon-explorer.somnia.network/address/0x86913db4d9a49848e6480d09b0ece612ff2b431e) |
-| `ArenaClock` | [`0x5d299bd6f63546b14e3b4367974ad94819e1a643`](https://shannon-explorer.somnia.network/address/0x5d299bd6f63546b14e3b4367974ad94819e1a643) |
-| `ArenaBadge` — desk owners | [`0x765e2b5bf6548ac514f31130ca07babd4dbb56b8`](https://shannon-explorer.somnia.network/address/0x765e2b5bf6548ac514f31130ca07babd4dbb56b8) |
-| `ArenaBadge` — contributors | [`0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966`](https://shannon-explorer.somnia.network/address/0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966) |
-
-Depends on two contracts it does not own:
-
-| | Address |
-| --- | --- |
-| SOMI:USDso SpotPool | [`0x259fD6559214dd5aD3752322426eA9F9fABEFff4`](https://shannon-explorer.somnia.network/address/0x259fD6559214dd5aD3752322426eA9F9fABEFff4) |
-| `OperatorPermissionsRegistry` | [`0x15C7e8CE38F021c5b45d098AaD788f63090bF20A`](https://shannon-explorer.somnia.network/address/0x15C7e8CE38F021c5b45d098AaD788f63090bF20A) |
-| Reactivity precompile | `0x0000000000000000000000000000000000000100` |
-
-**Proven live, not just built:**
-
-- `npm run arena:e2e` passes end to end against the real chain — creates desks, votes
-  from two wallets, follows the clock through four real boundaries, and asserts the
-  desks executed, the ballots settled, and the clock re-armed itself each time.
-- An armed desk's Sell became a real `placeOrderFor` owned by the desk owner:
-  [`0xb2ecdfd5…`](https://shannon-explorer.somnia.network/tx/0xb2ecdfd59c186b5183045e261a6657acb3058356c436472abac80ca9fd86b042).
-
----
-
-## How dreamDEX is used
-
-Every touch goes through dreamDEX's **contracts**, not its REST API — the arena prices
-its own rounds on-chain, so an HTTP quote could only disagree with the block it settles in.
-
-| # | What | Where |
+| | measured ρ | windows |
 | --- | --- | --- |
-| 1 | **The price that ranks every desk.** `getBookLevels` on the SOMI:USDso SpotPool, called from Solidity inside the transaction that settles the round. | `contracts/DeskArena.sol` → `_readMid()` |
-| 2 | **Granting the session key.** The owner calls `setOperatorApprovalGlobal` on the `OperatorPermissionsRegistry` for `placeOrderFor` / `cancelOrderFor` / `reduceOrderFor`. | `src/hooks/useArenaActions.ts` → `grantSessionKey` |
-| 3 | **Verifying that grant.** The arena reads `isGloballyApproved` itself, so a desk is only labelled *live* when the approval genuinely exists — an owner cannot fake it with a flag. The keeper re-checks `isOperatorAuthorized` on the pool before it tries. | `contracts/DeskArena.sol` → `deskIsArmed`, `src/lib/server/execute.ts` |
-| 4 | **Placing the real order.** `placeOrderFor` on the SpotPool, with `getPoolParams` for tick/lot/minQuantity, `getAutoPullRequirement` to discover which token the pool will pull and how much, and PostOnly repriced off the live book so it rests instead of taking. | `src/lib/server/execute.ts` → `executeDeskMove` |
+| BTC vs ETH, same 15m window | **0.58** | 492 |
+| BTC vs ETH, same 1h window | **0.64** | 487 |
+| BTC vs ETH, same 24h window | **0.82** | 23 |
+| BTC 15m vs its own next window | **0.07** | 499 |
+| ETH 15m vs its own next window | **−0.02** | 499 |
+| BTC 4h vs its own next window | **−0.24** | 148 |
 
-The order the arena places is owned by, and settles to, the **desk owner** — the session
-key only ever gets to place it.
+Read the two halves separately, because they say opposite things:
 
-### What is real, and what is paper
+**Buying more legs at once barely helps.** BTC and ETH close the same way most of the time, so seven
+simultaneous windows are worth about **3.3 independent coin flips**, not seven. The app reports that
+number (`effective legs`) rather than the leg count, and shows the independence-assuming bar next to
+the measured one so the gap is visible.
 
-This is the single most misread thing about the app, so in full.
+**Buying the same legs again next window helps a lot.** A series barely knows what it did last window.
+That is the diversification this venue actually offers, and it is why the product is a *rolling*
+sleeve rather than a basket you buy once.
 
-**One vote produces two independent effects.** For an armed desk, the same winning move
-runs down two tracks that never talk to each other:
-
-| | What actually moves | Size | Decides the leaderboard? |
-| --- | --- | --- | --- |
-| **Paper book** — inside `DeskArena` | a number in the contract | **1,000 SOMI** per round | **Yes.** This *is* the leaderboard. |
-| **Real order** — on the SpotPool, via the keeper | the owner's actual USDso / SOMI | **1 SOMI** — the pool's `minQuantity` | **No.** |
-
-And the price both are measured against is real either way: the mid comes off the live
-dreamDEX book, read on-chain.
-
-So an armed desk genuinely trades — a Sell really rests on the book, really fills, and the
-owner really receives USDso in their own wallet. But **its rank comes from the paper book,
-not from those fills**, and the real leg is a *minimum-size* order rather than a scaled
-copy of the paper position.
-
-Stated as plainly as possible: **the arena is a paper trading competition that also fires a
-small real order as proof the session key works.** It is not yet a real-money competition.
-
-**Why it is built this way.** If a desk has to be capital-backed to compete, the leaderboard
-ranks bankrolls instead of calls, and you get a handful of desks instead of a crowd — the
-opposite of the goal. The paper book keeps the contest free to enter and comparable across
-every desk; the session key keeps the real trading honest and demonstrable.
-
-**What would close the gap** (both listed in [Known limits](#known-limits)): size the real
-order to the paper lot so an armed desk's real exposure matches what the board says it did,
-and score armed desks on realized on-chain PnL in a second league shown beside the paper
-one — not replacing it, because armed and unarmed desks are not comparable on one axis.
+Which is also the honest headline: **an index here is a claim about variance, not about profit.** It
+costs one spread per leg and its expected value is the same as any of its legs. What changes is the
+shape of the outcome.
 
 ---
 
-## How the primitives work
+## What one unit is
 
-This repo is a small, complete reference for three Somnia/dreamDEX primitives. Each one
-does something a normal EVM app has to fake with a server.
+A unit is `weightᵢ` **contracts** of each leg. So:
 
-### 1. Session keys — a hot key that can trade but can never take
-
-dreamDEX records operator approvals in a shared `OperatorPermissionsRegistry`, granted
-**per function selector**:
-
-```solidity
-setOperatorApprovalGlobal(sessionKey, [0x80054449, 0xe37b444b, 0x364c2587], true)
-//                                     placeOrderFor  cancelOrderFor  reduceOrderFor
+```
+cost of a unit   = Σ wᵢ · priceᵢ          ← a number anyone can recompute from the book
+payoff of a unit = Σ wᵢ · 1{leg i wins}   ← the weighted fraction of legs that won
 ```
 
-The grant lets the session key open, cancel and reduce orders **that you own and that
-settle to you**. Fills pay the order owner. Deposits, withdrawals and approvals stay
-`msg.sender`-scoped. The operator funds nothing and can move nothing.
+Because the payoff is *linear* in the legs, a portfolio of the legs is that payoff exactly. That is
+the whole trick, and it is what makes the rest unnecessary — no authorized participants, no
+creation/redemption basket, no NAV to publish, no premium or discount to arbitrage.
 
-That is what makes a crowd-run desk safe: the arena's session key executes the vote,
-custody never leaves the desk owner's wallet, and `setOperatorApprovalGlobal(..., false)`
-kills it instantly.
+It also constrains what the venue can honestly offer. The app prices four payoff shapes off the same
+mids and executes exactly one:
 
-The arena doesn't take the owner's word for any of this. `deskIsArmed` reads the
-registry itself, so a desk is only labelled *live* when the grant genuinely exists:
+| payoff | fair value | replicable by holding the legs |
+| --- | --- | --- |
+| Average of N | `Σ wᵢpᵢ` | **yes** — this is what Quorum buys |
+| Any 1 of N | `1 − Π(1−pᵢ)` | no |
+| At least K of N | Poisson-binomial tail | no |
+| All N (a parlay) | `Π pᵢ` | no |
 
-```solidity
-// contracts/DeskArena.sol
-registry.isGloballyApproved(desk.owner, sessionKey, PLACE_ORDER_FOR)
-```
+The thresholds are shown because the comparison is the point: the same eight windows are a mild
+diversifier or a lottery ticket depending on nothing but which function of them settles. They would
+need a counterparty or a vault, so this app does not pretend to sell them.
 
-See `src/lib/server/execute.ts` for the placement path (auto-pull requirements, PostOnly
-repricing off the live book, tick/lot quantisation) and
-[Operators & Session Keys](https://docs.dreamdex.io/trading/readme-1/operators.md).
+### Sizing is where this goes wrong
 
-### 2. Reactivity — a clock that keeps itself alive
-
-Most "every N minutes" apps are a cron job with a private key. This one isn't.
-
-`SomniaExtensions._subscribe` requires the **subscription owner** to hold the 32 STT
-sybil bond — and the owner can be a *contract*. So `ArenaClock` holds its own bond, and
-the last thing it does inside its own callback is schedule its next firing:
-
-```solidity
-// contracts/ArenaClock.sol
-function _onEvent(address, bytes32[] calldata topics, bytes calldata) internal override {
-    try arena.tick() {} catch {}      // close the round that just ended
-    armedForMs = 0;
-    try this.rearm() {} catch (bytes memory reason) { emit ClockRearmFailed(...); }
-}
-```
-
-Three details make it survivable:
-
-- `rearm()` is `public` and takes no arguments, so if a beat is ever dropped **anyone**
-  can restart the heartbeat.
-- `tick()` is idempotent, so a double fire is harmless.
-- The callback wraps `arena.tick()` in `try/catch`, so a reverting tick can never take
-  the clock down with it.
-
-It schedules for the boundary **plus two seconds** — landing exactly on it risks a
-callback whose `block.timestamp` is still in the old round, which would silently skip a
-tick.
-
-There is no cron in this repo. `/api/keeper/tick` exists only to heal a miss and to
-place the real dreamDEX orders that a contract cannot place on an owner's behalf.
-
-### 3. An on-chain CLOB you can read from a contract
-
-The arena never trusts a price. It reads the SOMI:USDso book directly, in the same
-transaction that settles the round:
-
-```solidity
-// contracts/DeskArena.sol
-try pool.getBookLevels(true, 1) returns (ISpotPool.Level[] memory bids) { ... }
-try pool.getBookLevels(false, 1) returns (ISpotPool.Level[] memory asks) { ... }
-// mid = (bestBid + bestAsk) / 2
-```
-
-No oracle, no keeper-supplied price, no signed feed. Both calls are wrapped so an empty
-or reverting book skips the round rather than marking every desk against a zero.
+Splitting a stake evenly across the legs is the obvious implementation and it silently builds a
+different product. Equal *money* buys many more contracts of a leg priced at 0.13 than one priced at
+0.98, so the payoff ends up dominated by whichever legs happened to be cheap — it is no longer an
+average of anything. Each leg is therefore budgeted in proportion to `weightᵢ × priceᵢ`, which makes
+the contract counts proportional to the weights. You can see it in the plan table: every leg buys the
+same number of contracts.
 
 ---
 
-## The game
+## What is on the page
 
-**One clock for everyone.** A round is `block.timestamp / 300`. Every desk opens and closes
-on the identical boundary, so profit is measured over identical windows — and there is no
-per-desk timer to drift and nothing to synchronise between server instances.
-
-**Voting is a transaction.** `vote(deskId, choice)` — one per wallet, per desk, per round.
-The tally is the chain's, not a server's. A tie resolves to *Wait*: the crowd has to
-actually agree to move a book. Your first ballot mints your contributor badge in the same
-transaction.
-
-**Desks are ranked on an identical book.** Every desk starts with 1,000 USDso and trades a
-fixed 1,000 SOMI lot in the winning direction at the closing mid, position capped at ±5
-lots. Profit is `cash + position × mid − 1000`. Same capital, same lot, same window, same
-price — so the leaderboard compares desks, not bankrolls.
-
-**Armed desks also trade for real.** If an owner grants the session key and approves the
-quote token, the keeper mirrors that same winning move onto the live dreamDEX book as an
-order the owner keeps. Opening a desk stays cheap; going live is opt-in and revocable.
-
-**You are scored on your own call.** One round after your vote executes, the arena knows
-what the move was worth and settles your ballot against it in basis points:
-
-| your vote | points |
-| --- | --- |
-| Buy | `+clamp(bps, −50, +50)` |
-| Sell | `−clamp(bps, −50, +50)` |
-| Wait | `max(0, 10 − \|bps\|)` |
-
-You score on whether *you* were right, not on whether the crowd agreed with you. Points are
-clamped so a single violent candle can't decide a season. Consecutive positive rounds build
-a streak; a season is 288 rounds (24h) and is a *slice* of your lifetime total, so nothing
-you earn is ever wiped.
-
-**Settlement can't wedge.** Scores are stored per round, not per voter, so a round that
-moves every leaderboard is one `O(1)` write. Voters then walk their own ballots — and a
-round that missed its tick is skipped at zero rather than blocking the cursor forever.
-
-**Opening a desk posts a bond.** `CREATE_BOND` (0.05 STT) is held by the arena and
-returned in full by `retireDesk`. It gates spam desks; a retired desk keeps its profit on
-the board, frozen.
-
-### The round, end to end
-
-```
-[ round R opens ]  --- 5 min: the crowd votes on every desk ---  [ boundary ]
-                                                                     |
-   ArenaClock fires (and re-arms itself) ─────────────────────────────┤
-                                                                     |
-   arena.tick():                                                     |
-     roundMid[R+1] = mid read from the SpotPool book                 |
-     every desk executes round R's majority move at that mid         |
-     round R-1's ballots settle against mid[R] -> mid[R+1]           |
-                                                                     |
-   keeper (only for armed desks): placeOrderFor on the real book ────┘
-```
-
-Your vote is a prediction for the window your desk is actually exposed to, so scoring
-lags execution by one round. That lag is also the retention hook: come back in five
-minutes to see whether you were right *and* to vote again.
+- **The board** — every live window, both sides, with real depth. There is exactly one live window per
+  series; no window *t+1* exists to buy today.
+- **One index unit** — fair value from mids, cost from asks, and the spread between them, because an
+  index buyer crosses every leg and pretending otherwise flatters the product.
+- **The payoff ladder** — a single contract has two bars. This has N+1, and the cost line shows which
+  of them made money.
+- **Risk, measured** — one contract, versus the basket assuming independence, versus the basket at
+  measured correlation, versus the basket rolled.
+- **Settled history** — the correlation matrix, per-series up-rates, and each series' correlation with
+  its own next window.
+- **A replay** — the basket and a single contract over the same settled windows, entered at the same
+  price so their expected values match and only the dispersion differs.
+- **The orders** — exactly what a buy becomes, per leg, before you send it.
+- **Positions and claims** — outcome balances and a batched sweep-redeem.
 
 ---
 
-## Contracts
+## Running it for real
 
-| Contract | What it holds |
-| --- | --- |
-| `DeskArena.sol` | Desks, ballots, round mids, paper books, points, streaks, seasons |
-| `ArenaClock.sol` | The self-rescheduling Reactivity heartbeat |
-| `ArenaBadge.sol` | Soulbound ERC-721, deployed twice: desk owners and contributors |
-
-Badges never store a score — `scoreOf` reads through to the arena at call time:
-
-```solidity
-// contracts/ArenaBadge.sol
-function scoreOf(address wallet) public view returns (int256) {
-    if (kind == Kind.Desk) return arena.deskScoreOf(wallet);
-    return arena.contributorScoreOf(wallet);
-}
-```
-
-So a round that moves every leaderboard costs **zero** token writes; the only write
-either collection ever does is the mint, inside the holder's own `createDesk` / `vote`
-transaction. Transfers and approvals all revert `Soulbound()`.
-
-`tokenURI` points back at `/api/nft/desk/{id}` and `/api/nft/contributor/{id}`, which
-read the live score off the arena — so an explorer shows current standing, not a
-mint-time snapshot.
-
-### Deploy order
-
-The badges need the arena's address and the arena needs theirs, so wiring is one-shot:
-
-1. `DeskArena(pool, registry, sessionKey)`
-2. `ArenaBadge` ×2, each constructed with the arena address
-3. `arena.setBadges(desk, contributor)` — deployer only, and only once
-4. `ArenaClock{value: 45 STT}(arena, admin)`, then `clock.rearm()`
-
-`npm run deploy:arena` does all of it.
-
----
-
-## What is on-chain, and what the server is for
-
-Everything that decides an outcome is on-chain:
-
-| | Where it lives |
-| --- | --- |
-| Desks, owners, bonds | `DeskArena` |
-| Ballots and tallies | `DeskArena` — every vote is a transaction |
-| The round price | Read from the SpotPool inside `tick()` |
-| Paper books, profit, ranking | `DeskArena` |
-| Points, streaks, seasons | `DeskArena` |
-| Badges and their scores | `ArenaBadge` ×2, reading through to the arena |
-| The five-minute clock | `ArenaClock`, owning its own subscription |
-
-The Next.js app does exactly two things the chain cannot:
-
-1. **Reads and renders.** `/api/arena` is one batched read of the whole arena. It holds
-   no state — turn it off and the arena keeps running.
-2. **Runs the keeper.** `/api/keeper/tick` heals a dropped beat and places the real
-   dreamDEX orders for armed desks, because a contract cannot call `placeOrderFor` on an
-   owner's behalf. Both actions are idempotent and safe to hit from anywhere.
-
-### Repo map
-
-```
-contracts/          DeskArena.sol, ArenaClock.sol, ArenaBadge.sol
-scripts/            deploy, compile, ABI generation, and the live e2e proofs
-src/app/            routes: / · /desk/[id] · /create · /leaderboard · /orchard
-src/app/api/        arena (read) · keeper/tick (heal + mirror) · nft/* (metadata)
-src/components/     arena UI
-src/hooks/          useArena (poll) · useArenaActions (writes) · useDeskOwner (grants)
-src/lib/chain/      addresses, chain config, generated ABIs
-src/lib/server/     arena reader, keeper, order execution, badge metadata
-```
-
-`src/lib/chain/*-abi.ts` is generated — run `npm run abis` after touching a contract
-rather than editing it by hand.
-
----
-
-## Run it
+Read-only is the default and does everything except send. To trade:
 
 ```bash
-cp .env.example .env.local     # fill in the RPC and SESSION_PRIVATE_KEY
-npm install
-npm run deploy:arena           # deploys all four, funds and arms the clock
-# paste the printed addresses into .env.local
+cp .env.example .env.local
+# QUORUM_ALLOW_TRADING=1
+# QUORUM_PRIVATE_KEY=0x…
 npm run dev
 ```
 
-The deployed Shannon addresses ship as defaults in `src/lib/chain/constants.ts`, so the
-app is fully readable with **no environment at all** — an env var only overrides them.
-You only need your own deployment if you want to change the contracts.
+Two switches rather than one, on purpose: a key sitting in the environment is not consent to spend it.
+`QUORUM_MAX_STAKE` caps what any single request may commit, which matters on a hosted demo where that
+key is spending for anyone who opens the page.
 
-`npm run deploy:arena` needs the deployer to hold ~50 STT: 45 goes into the clock so it
-can own its subscription, the rest is gas. Get testnet STT from the
-[Somnia faucet](https://testnet.somnia.network/).
+Shannon testnet collateral is faucet tUSDC — `exchange.trader.faucet()` mints it.
 
-| Script | |
-| --- | --- |
-| `npm run dev` / `build` / `start` | The Next.js app |
-| `npm run compile` | Compile the contracts and check them against the EIP-170 limit |
-| `npm run abis` | Regenerate `src/lib/chain/*-abi.ts` from `contracts/` |
-| `npm run deploy:arena` | Deploy the arena, both badges and the clock |
-| `npm run arena:e2e` | Full live proof against Shannon: create, vote, follow the clock, settle |
-| `node scripts/arm-desk.mjs <id>` | Grant the session key + approve the quote token for a desk |
-| `node scripts/live-order-test.mjs <id>` | Prove an armed desk's move becomes a real order |
+### The bot
 
-`npm run arena:e2e` runs against the real chain and takes about twenty minutes, because
-it waits out real five-minute rounds and asserts the clock re-armed itself each time.
-
-Solidity is pinned to **0.8.30** because `@somnia-chain/reactivity-contracts` pins it
-exactly; a newer solc will refuse to compile `ArenaClock`.
-
-### Environment
-
-| Variable | Needed for | |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SOMNIA_RPC_URL` | everything | defaults to the public Shannon RPC |
-| `NEXT_PUBLIC_ARENA_ADDRESS` | everything | defaults to the live deployment |
-| `NEXT_PUBLIC_DESK_BADGE_ADDRESS` | badges | defaults to the live deployment |
-| `NEXT_PUBLIC_CONTRIBUTOR_BADGE_ADDRESS` | badges | defaults to the live deployment |
-| `NEXT_PUBLIC_ARENA_CLOCK_ADDRESS` | clock status in the UI | defaults to the live deployment |
-| `NEXT_PUBLIC_SESSION_ADDRESS` | the owner grant flow | must match the arena's `sessionKey` |
-| `SESSION_PRIVATE_KEY` | the keeper only | **server-only** — never prefix it `NEXT_PUBLIC_` |
-| `NEXT_PUBLIC_APP_URL` | badge `tokenURI` base | the public origin |
-
-Without `SESSION_PRIVATE_KEY` the app runs read-only: the clock still ticks, voting,
-badges and both leaderboards all work — only real-order mirroring and the tick-healing
-fallback are off.
-
----
-
-## Verify it yourself
-
-Nothing here needs to be taken on trust.
+The web app can buy a cross-section; it cannot sit there and roll it, and rolling is where the
+variance actually goes. `bots/roll-sleeve.ts` is the same index as a process you run with your own
+key:
 
 ```bash
-# the clock is beating, and re-armed itself for a future boundary
-cast call 0x5d299bd6f63546b14e3b4367974ad94819e1a643 "fireCount()(uint256)"
-cast call 0x5d299bd6f63546b14e3b4367974ad94819e1a643 "armedForMs()(uint256)"
-
-# the arena is current: lastTickedRound == roundId
-cast call 0x86913db4d9a49848e6480d09b0ece612ff2b431e "arenaState()"
-
-# a desk is armed only if the registry really holds the grant
-cast call 0x86913db4d9a49848e6480d09b0ece612ff2b431e "deskIsArmed(uint256)(bool)" 1
+QUORUM_PRIVATE_KEY=0x… QUORUM_ALLOW_TRADING=1 \
+QUORUM_SLEEVE=cross-asset QUORUM_STAKE=5 QUORUM_ROLLS=8 \
+  npx tsx bots/roll-sleeve.ts
 ```
 
-Or read the same thing through the app: `GET /api/arena` returns the whole arena in one
-JSON blob, including `clock.fireCount` and `state.lastTickedRound`.
+It discovers the live windows, quotes the basket, buys it in contract-proportional legs, sweeps
+whatever settled, waits for the next window, and repeats. Without `QUORUM_ALLOW_TRADING` it prints
+every order it would have sent and sends nothing.
 
 ---
 
-## Known limits
+## Layout
 
-Worth stating plainly, because they are the things to fix before this is more than a
-testnet showcase:
+```
+src/engine/        pure, no chain, no clock, no I/O — 65 unit tests
+  distribution.ts  exact payoff distribution (weighted convolution) + Poisson-binomial
+  correlation.ts   phi coefficients from settled outcomes, basket sd, effective legs
+  quote.ts         NAV, cost, the four payoff shapes, risk projection
+  backtest.ts      replay a basket against a single contract over settled windows
+  templates.ts     the cross-sections worth holding, each isolating one dependence
+  units.ts         collateral scale conversions (and why prices are never built here)
 
-- **The mid is a single top-of-book snapshot.** Reading `getBookLevels(_, 1)` at the
-  boundary is verifiable but manipulable: someone can widen or shift the touch in the
-  block the round settles and move every desk's mark at once. On mainnet this wants a
-  depth-weighted mid or a short TWAP, and a sanity band that skips a round whose mid
-  jumps implausibly.
-- **Free voting is sybil-able.** The bond gates *desks*, not ballots, so nothing stops one
-  person running many voting wallets. Points only accrue for being right and splitting
-  across wallets splits the score, which blunts it — it doesn't solve it. A ballot bond or
-  a stake weight is the real answer.
-- **`MAX_DESKS` is 256.** `tick()` walks every desk in one Reactivity callback, so the
-  arena is capped to keep that inside the callback's gas limit. Past that it needs a
-  cursor that resumes across beats.
-- **Real orders don't feed the leaderboard.** An armed desk places genuine orders, but
-  its rank still comes from the paper book. The fix is a second league scored on the
-  owner's realized on-chain PnL, shown next to the paper one rather than replacing it —
-  armed and unarmed desks aren't comparable on the same axis.
-- **The real order is minimum size, the paper trade is not.** `executeDeskMove` places
-  `minQuantity` (1 SOMI) while the paper book moves a 1,000 SOMI lot, so an armed desk's
-  real exposure is ~1/1000th of what the leaderboard says it did. Sizing the real order to
-  the paper lot is a one-line change in `execute.ts`; it is left small deliberately while
-  this is a demo, because the order spends the owner's own funds.
-- **The keeper's mirror ledger is in memory.** Which `(round, desk)` pairs it already
-  mirrored lives in the process, so a cold start can re-attempt one. `placeOrderFor` is
-  PostOnly at the touch, so the worst case is a duplicate resting order, not a double
-  spend — but a durable ledger is the real fix.
+src/somnia/        everything that touches the chain, server-only
+  exchange.ts      read-only and signing exchanges; the two trading switches
+  discover.ts      live legs — indexer filter, on-chain status gate, expiry headroom
+  history.ts       settled outcomes, paged by facet because there is no offset
+  execute.ts       basket buy: contract-proportional legs, IOC, per-leg reporting
+  portfolio.ts     outcome balances and batched sweep-redeem
+  desk.ts          the composed snapshot every route reads
 
-## Notes
+bots/census.ts     every number the app is built on, printed from a terminal
+bots/roll-sleeve.ts the rolling index as a bot
+```
 
-- **Testnet only, for now.** Every address is env-driven and the chain is defined in one
-  place (`src/lib/chain/config.ts`), so a mainnet run is a redeploy plus an env swap —
-  substitute the mainnet `OperatorPermissionsRegistry`
-  (`0xE7a190736B6024a4DbafadC04E283075877005ce`) and the mainnet pool.
-- **No cron required.** The clock ticks itself. Any page load also heals a missed beat via
-  `/api/keeper/tick`. If you want a third belt, point a scheduler at that route.
-- **The server is not load-bearing.** Ballots, tallies, mids, books, points and badges are
-  all on-chain. Turn the app off and the arena keeps running.
+`npm test` runs the engine suite. It is all pure functions, so the maths is testable without a chain:
+the distribution's mean must equal `Σ wᵢpᵢ`, eight independent even legs must land at exactly
+`0.5/√8`, perfectly correlated legs must diversify nothing, and an unmeasurable correlation must not
+quietly become independence.
+
+---
+
+## Things that bit us
+
+Worth reading before you build on event contracts, because each of these was a bug here first.
+
+**The indexer keeps dead windows in `Trading`.** A flat `listBinaryMarkets({ status: "Trading" })`
+returned 500 rows of which 8 were live; the rest had expired up to 25 days earlier. `listLiveBinaryMarkets`
+filters `expiry > now` server-side. The on-chain status gate is still needed on top, because status is
+time-derived and the index lags by seconds.
+
+**`listBinaryMarkets` has a `limit` but no `offset`.** Paging with an offset returns *the same page*
+again. Six "pages" of history were six copies of one page, and after sorting by expiry each window sat
+next to its own duplicate — which reads as lag-1 correlation of **0.84** instead of the true **0.07**.
+That single artifact reversed the product's central conclusion. History is now collected by narrowing
+on `(asset, intervalSec)` facets, and rows are deduplicated by market id regardless.
+
+**`fillPrice` is always the YES price.** On a Down leg the cost per contract is its complement.
+Reading it as the traded side's own price under-reports spend on every Down fill.
+
+**`getBinaryOrderBook`'s `decimals` option defaults to 6.** It is what the NO side is inverted
+against, so leaving it out silently corrupts every NO price on an 18-decimal venue.
+
+**Escrow is not a price forecast.** `quoteBinaryStakeOverBook` returns `escrow = quantity × the
+protective limit` — a max loss. The expected fill comes from `quoteBinaryOrderOverBook`, which walks
+the same book. Reporting the first as an average price makes every basket look 3% more expensive than
+it is.
+
+**A uniform correlation is not a correlation.** Projecting a dozen rolls with a uniform ρ is only
+valid down to `−1/(n−1)`; a mildly negative measured ρ pushed the implied variance through zero and
+the app reported a **risk-free index**. The projection is a lag-1 band now — the only sequential
+dependence the data supports — because measured lag-2 and lag-4 are indistinguishable from zero.
+
+**A thin sample will happily set your headline.** A 23-window reading of ρ = −0.57 is noise, and
+averaged naively it dominated six other series and inflated "effective legs" by 50%. Estimates are
+shrunk toward zero by `n/(n+30)` and pooled with `n` as the weight.
+
+**Float prices are rejected on an 18-decimal venue.** `parseUnits((0.05).toFixed(18), 18)` lands three
+wei off the tick grid and the pool answers `InvalidPrice`. Of the ordinary probabilities only 0.25,
+0.5 and 0.75 survive the conversion. A 6-decimal venue never shows it, so testnet looks clean while
+every mainnet order fails — which is why no price in this repo is ever built from a float.
+
+---
+
+Built with [`@somnia-chain/markets-sdk`](https://www.npmjs.com/package/@somnia-chain/markets-sdk) on
+Somnia. Prices, books, correlations and settled outcomes are read live; the only modelled number
+anywhere is the replay entry price, and it is a labelled slider.
