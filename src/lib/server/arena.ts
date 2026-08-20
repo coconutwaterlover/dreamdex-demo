@@ -13,7 +13,9 @@ import {
   isArenaConfigured,
   isClockConfigured,
 } from "@/lib/chain/constants";
+import { erc20Abi, poolAbi } from "@/lib/chain/pool-abi";
 import type { ArenaSnapshot, ContributorRow, DeskRow } from "@/lib/arena/types";
+import { readMirror } from "./mirror";
 import { getPublicClient } from "./session";
 
 const E6 = 1_000_000;
@@ -49,6 +51,9 @@ export function emptySnapshot(): ArenaSnapshot {
     desks: [],
     contributors: [],
     clock: null,
+    scale: null,
+    realBooks: [],
+    mirror: { entries: [], since: Date.now() },
     addresses: {
       arena: null,
       deskBadge: null,
@@ -200,6 +205,13 @@ export async function readArena(): Promise<ArenaSnapshot> {
     }
   }
 
+  const [scale, realBooks] = await Promise.all([
+    readScale(client, address).catch(() => null),
+    readRealBooks(client, desks).catch(() => []),
+  ]);
+
+  const mirror = readMirror();
+
   return {
     configured: true,
     state: {
@@ -218,6 +230,23 @@ export async function readArena(): Promise<ArenaSnapshot> {
     desks,
     contributors,
     clock,
+    scale,
+    realBooks,
+    mirror: {
+      entries: mirror.entries.map((e) => ({
+        roundId: e.roundId,
+        deskId: e.deskId,
+        side: e.side,
+        txHash: e.txHash,
+        error: e.error,
+        intendedPrice: e.intendedPriceE18 ? Number(formatUnits(BigInt(e.intendedPriceE18), 18)) : null,
+        placedPrice: e.placedPriceE18 ? Number(formatUnits(BigInt(e.placedPriceE18), 18)) : null,
+        slipBps: e.slipBps,
+        repriced: e.repriced,
+        at: e.at,
+      })),
+      since: mirror.since,
+    },
     addresses: {
       arena: ARENA_ADDRESS,
       deskBadge: DESK_BADGE_ADDRESS ?? null,
@@ -251,4 +280,58 @@ export async function readMyVotes(voter: Address, roundId: number, deskCount: nu
     if (v) out[i] = Number(v);
   });
   return out;
+}
+
+type Client = ReturnType<typeof getPublicClient>;
+
+/**
+ * How big the modelled trade is against the real one. The paper lot comes from the
+ * arena, the real lot is the pool's own minimum — neither is hardcoded here, so the
+ * number on screen can never drift from what the contracts actually do.
+ */
+async function readScale(client: Client, arena: Address) {
+  const [paperLotE6, params] = await Promise.all([
+    client.readContract({ address: arena, abi: deskArenaAbi, functionName: "LOT_E6" }),
+    client.readContract({ address: SOMI_USDSO_POOL, abi: poolAbi, functionName: "getPoolParams" }),
+  ]);
+  const paperLotSomi = Number(paperLotE6) / E6;
+  const realLotSomi = Number(formatUnits(params[5], 18));
+  return {
+    paperLotSomi,
+    realLotSomi,
+    ratio: realLotSomi > 0 ? paperLotSomi / realLotSomi : 0,
+  };
+}
+
+/** The actual wallet behind each armed desk, so the page can show real beside modelled. */
+async function readRealBooks(client: Client, desks: DeskRow[]) {
+  const armed = desks.filter((d) => d.armed);
+  if (!armed.length) return [];
+  const params = await client.readContract({
+    address: SOMI_USDSO_POOL,
+    abi: poolAbi,
+    functionName: "getPoolParams",
+  });
+  const quoteToken = params[1];
+  return Promise.all(
+    armed.map(async (d) => {
+      const [usdso, somi] = await Promise.all([
+        client
+          .readContract({
+            address: quoteToken,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [d.owner as Address],
+          })
+          .catch(() => BigInt(0)),
+        client.getBalance({ address: d.owner as Address }).catch(() => BigInt(0)),
+      ]);
+      return {
+        deskId: d.deskId,
+        owner: d.owner,
+        usdso: Number(formatUnits(usdso, 18)),
+        somi: Number(formatUnits(somi, 18)),
+      };
+    }),
+  );
 }

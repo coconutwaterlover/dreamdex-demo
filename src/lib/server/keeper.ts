@@ -8,6 +8,7 @@ import {
   isClockConfigured,
 } from "@/lib/chain/constants";
 import { executeDeskMove } from "./execute";
+import { recordMirror } from "./mirror";
 import { getPublicClient, isExecutorConfigured, writeSessionContract } from "./session";
 
 export type KeeperReport = {
@@ -18,7 +19,17 @@ export type KeeperReport = {
   rearmTxHash: string | null;
   roundId: number;
   lastTickedRound: number;
-  mirrored: { deskId: number; owner: string; side: string; txHash: string | null; error: string | null }[];
+  mirrored: {
+    deskId: number;
+    owner: string;
+    side: string;
+    txHash: string | null;
+    error: string | null;
+    intendedPriceE18: string | null;
+    placedPriceE18: string | null;
+    slipBps: number | null;
+    repriced: boolean;
+  }[];
   notes: string[];
 };
 
@@ -114,6 +125,21 @@ async function keeperPass(): Promise<KeeperReport> {
   // 3. Mirror the round that just closed for every armed desk.
   const closing = report.lastTickedRound - 1;
   if (closing > 0) {
+    // The arena settled the paper book for `closing` at the mid that opened the round
+    // after it. Pricing the real order from that same number is what keeps the two legs
+    // describing one intent rather than two.
+    let intendedMid: bigint | undefined;
+    try {
+      intendedMid = await client.readContract({
+        ...arena,
+        functionName: "roundMid",
+        args: [BigInt(report.lastTickedRound)],
+      });
+      if (intendedMid === BigInt(0)) intendedMid = undefined;
+    } catch {
+      intendedMid = undefined;
+    }
+
     let desks: readonly { deskId: bigint; owner: Address; armed: boolean; retired: boolean }[] = [];
     try {
       desks = await client.readContract({ ...arena, functionName: "deskBoard", args: [BigInt(closing)] });
@@ -145,14 +171,29 @@ async function keeperPass(): Promise<KeeperReport> {
         continue;
       }
 
-      const result = await executeDeskMove(desk.owner, side);
+      const result = await executeDeskMove(desk.owner, side, intendedMid);
       mem.mirrored.add(key);
-      report.mirrored.push({
+      const entry = {
+        roundId: closing,
         deskId,
         owner: desk.owner,
         side,
         txHash: result.ok && !result.skipped ? result.txHash : null,
         error: result.ok ? null : result.error,
+        at: Date.now(),
+        ...result.report,
+      };
+      recordMirror(entry);
+      report.mirrored.push({
+        deskId,
+        owner: desk.owner,
+        side,
+        txHash: entry.txHash,
+        error: entry.error,
+        intendedPriceE18: entry.intendedPriceE18,
+        placedPriceE18: entry.placedPriceE18,
+        slipBps: entry.slipBps,
+        repriced: entry.repriced,
       });
     }
   }

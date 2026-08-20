@@ -37,6 +37,9 @@ function emptyFeed(): ArenaSnapshot {
     desks: [],
     contributors: [],
     clock: null,
+    scale: null,
+    realBooks: [],
+    mirror: { entries: [], since: Date.now() },
     addresses: {
       arena: null,
       deskBadge: null,

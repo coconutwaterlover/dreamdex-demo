@@ -62,12 +62,48 @@ export type ClockState = {
   funded: boolean;
 };
 
+/** What the real leg did for one (round, desk), beside what the paper book recorded. */
+export type MirrorRow = {
+  roundId: number;
+  deskId: number;
+  side: string;
+  txHash: string | null;
+  error: string | null;
+  intendedPrice: number | null;
+  placedPrice: number | null;
+  slipBps: number | null;
+  repriced: boolean;
+  at: number;
+};
+
+/**
+ * The size gap between the two legs, read live from the arena and the pool rather than
+ * hardcoded — it is the single clearest statement of how much of a desk is real.
+ */
+export type Scale = {
+  paperLotSomi: number;
+  realLotSomi: number;
+  /** paperLot / realLot — how many times larger the modelled trade is. */
+  ratio: number;
+};
+
+/** An armed desk's actual wallet, for comparison against its modelled book. */
+export type RealBook = {
+  deskId: number;
+  owner: string;
+  usdso: number;
+  somi: number;
+};
+
 export type ArenaSnapshot = {
   configured: boolean;
   state: ArenaState;
   desks: DeskRow[];
   contributors: ContributorRow[];
   clock: ClockState | null;
+  scale: Scale | null;
+  realBooks: RealBook[];
+  mirror: { entries: MirrorRow[]; since: number };
   addresses: {
     arena: string | null;
     deskBadge: string | null;

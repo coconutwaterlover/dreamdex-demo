@@ -147,6 +147,7 @@ export function ArenaPage() {
                     busy={actions.busy}
                     isOwner={!!address && desk.owner.toLowerCase() === address.toLowerCase()}
                     onVote={onVote}
+                    scaleRatio={feed.scale?.ratio}
                   />
                 ))}
               </div>

@@ -8,6 +8,8 @@ import { addressHref } from "@/lib/chain/constants";
 
 type Props = {
   desk: DeskRow;
+  /** Paper-lot / real-lot ratio, for the armed-desk footnote. */
+  scaleRatio?: number;
   myVote: Choice;
   connected: boolean;
   busy: string | null;
@@ -22,7 +24,7 @@ function RankBadge({ rank, retired }: { rank: number; retired: boolean }) {
   return <span className={`rank ${medal}`}>{ordinal(rank)}</span>;
 }
 
-export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compact }: Props) {
+export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compact, scaleRatio }: Props) {
   const [pending, setPending] = useState<Choice>("none");
   const voted = myVote !== "none";
   const total = desk.votes || 1;
@@ -133,6 +135,12 @@ export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compa
             );
           })}
         </div>
+      )}
+
+      {desk.armed && !!scaleRatio && scaleRatio > 1 && (
+        <p className="deskcard-foot dim">
+          Real order is 1/{Math.round(scaleRatio)} of the modelled lot and doesn&apos;t affect rank
+        </p>
       )}
 
       <p className="deskcard-foot">

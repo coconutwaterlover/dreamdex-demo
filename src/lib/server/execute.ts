@@ -11,11 +11,38 @@ import {
 import { fetchOnChainBook, quoteToRawPrice } from "./market";
 import { getPublicClient, getSessionWallet, isExecutorConfigured, writeSessionContract } from "./session";
 
-export type ExecuteResult =
+/** What the order was meant to be, versus what actually went to the book. */
+export type ExecuteReport = {
+  /** The mid the arena settled the paper book at — the price this order is meant to hit. */
+  intendedPriceE18: string | null;
+  /** What PostOnly actually allowed us to post at. */
+  placedPriceE18: string | null;
+  quantityE18: string | null;
+  /** Distance between intent and placement, signed, in bps of the intended price. */
+  slipBps: number | null;
+  /** True when PostOnly forced us off the intended price to avoid crossing. */
+  repriced: boolean;
+};
+
+export type ExecuteResult = (
   | { ok: true; skipped: true; reason: string }
   | { ok: true; skipped: false; txHash: `0x${string}` }
   | { ok: false; blocked: true; error: string }
-  | { ok: false; blocked: false; error: string };
+  | { ok: false; blocked: false; error: string }
+) & { report: ExecuteReport };
+
+const NO_REPORT: ExecuteReport = {
+  intendedPriceE18: null,
+  placedPriceE18: null,
+  quantityE18: null,
+  slipBps: null,
+  repriced: false,
+};
+
+function slipOf(intended: bigint, placed: bigint): number {
+  if (intended === BigInt(0)) return 0;
+  return Number(((placed - intended) * BigInt(10_000)) / intended);
+}
 
 function quantize(price: bigint, quantity: bigint, tickSize: bigint, lotSize: bigint, minQuantity: bigint, isBid: boolean) {
   const qPrice = isBid
@@ -46,6 +73,27 @@ function postOnlyPrice(
   let price = bestAsk ?? (bestBid ? bestBid + tickSize : fallback);
   if (bestBid && price <= bestBid) price = bestBid + tickSize;
   return price;
+}
+
+/**
+ * Post at the arena's intended price when PostOnly allows it. If that price would take
+ * liquidity the order is rejected outright, so step just inside the touch instead and
+ * let the caller report the difference rather than hiding it.
+ */
+function postOnlyFromIntent(
+  isBid: boolean,
+  tickSize: bigint,
+  book: { bids: { price: bigint }[]; asks: { price: bigint }[] },
+  intended: bigint,
+): bigint {
+  const bestBid = book.bids[0]?.price;
+  const bestAsk = book.asks[0]?.price;
+  if (isBid) {
+    if (bestAsk && intended >= bestAsk) return bestAsk - tickSize;
+    return intended;
+  }
+  if (bestBid && intended <= bestBid) return bestBid + tickSize;
+  return intended;
 }
 
 function selectorOf(err: unknown): `0x${string}` | null {
@@ -115,14 +163,23 @@ function isBlockedError(err: unknown): boolean {
 /**
  * Mirrors one armed desk's winning move onto the real DreamDEX book. The order is
  * owned by, and settles to, the desk owner — the session key only gets to place it.
+ *
+ * `intendedPriceE18` is the mid the arena settled the paper book at. Pricing from it
+ * rather than from the touch a few seconds later means the real order and the
+ * leaderboard entry describe the same intent, and any gap between them is reported as
+ * slip instead of quietly disappearing.
  */
-export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Promise<ExecuteResult> {
+export async function executeDeskMove(
+  owner: Address,
+  side: "bid" | "ask",
+  intendedPriceE18?: bigint,
+): Promise<ExecuteResult> {
   try {
     if (!isExecutorConfigured()) {
-      return { ok: false, blocked: false, error: "SESSION_PRIVATE_KEY is not set" };
+      return { ok: false, blocked: false, error: "SESSION_PRIVATE_KEY is not set", report: NO_REPORT };
     }
     if (!SESSION_ADDRESS) {
-      return { ok: false, blocked: false, error: "Session address missing" };
+      return { ok: false, blocked: false, error: "Session address missing", report: NO_REPORT };
     }
 
     const publicClient = getPublicClient();
@@ -136,7 +193,7 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
       args: [owner, wallet.account.address, PLACE_ORDER_FOR],
     });
     if (!authorized) {
-      return { ok: false, blocked: true, error: "OnlyApprovedContracts" };
+      return { ok: false, blocked: true, error: "OnlyApprovedContracts", report: NO_REPORT };
     }
 
     const params = await publicClient.readContract({
@@ -147,9 +204,21 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
     const [, , , , tickSize, minQuantity, lotSize] = params;
 
     const book = await fetchOnChainBook(1);
-    const fallback = quoteToRawPrice(isBid ? 0.0875 : 0.0876);
-    const rawPrice = postOnlyPrice(isBid, tickSize, book, fallback);
+    // Prefer the arena's settled mid; fall back to the touch only if we weren't given one.
+    const fallback = intendedPriceE18 ?? quoteToRawPrice(isBid ? 0.0875 : 0.0876);
+    const rawPrice = intendedPriceE18
+      ? postOnlyFromIntent(isBid, tickSize, book, intendedPriceE18)
+      : postOnlyPrice(isBid, tickSize, book, fallback);
     const { price, quantity } = quantize(rawPrice, minQuantity, tickSize, lotSize, minQuantity, isBid);
+
+    const intended = intendedPriceE18 ?? price;
+    const report: ExecuteReport = {
+      intendedPriceE18: intended.toString(),
+      placedPriceE18: price.toString(),
+      quantityE18: quantity.toString(),
+      slipBps: slipOf(intended, price),
+      repriced: price !== intended,
+    };
 
     const pull = await publicClient.readContract({
       address: SOMI_USDSO_POOL,
@@ -180,13 +249,14 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
         }),
       ]);
       if (allowance < requiredAmount) {
-        return { ok: false, blocked: false, error: "House owner must Approve USDso for the pool" };
+        return { ok: false, blocked: false, error: "Desk owner must Approve USDso for the pool", report };
       }
       if (balance < requiredAmount) {
         return {
           ok: false,
           blocked: false,
           error: `Desk owner USDso balance ${formatUnits(balance, 18)} < ${formatUnits(requiredAmount, 18)} needed for this bid`,
+          report,
         };
       }
     } else if (value > BigInt(0)) {
@@ -196,6 +266,7 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
           ok: false,
           blocked: false,
           error: `Session key native balance too low to attach msg.value for this ask`,
+          report,
         };
       }
     }
@@ -223,7 +294,7 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
       gas,
     });
     if (!sim.result[0]) {
-      return { ok: false, blocked: false, error: "placeOrderFor returned success=false (PostOnly crossed or silent reject)" };
+      return { ok: false, blocked: false, error: "placeOrderFor returned success=false (PostOnly crossed or silent reject)", report };
     }
     const txHash = await writeSessionContract({
       address: SOMI_USDSO_POOL,
@@ -233,11 +304,11 @@ export async function executeDeskMove(owner: Address, side: "bid" | "ask"): Prom
       value,
       gas,
     });
-    return { ok: true, skipped: false, txHash };
+    return { ok: true, skipped: false, txHash, report };
   } catch (err) {
     if (isBlockedError(err)) {
-      return { ok: false, blocked: true, error: "OnlyApprovedContracts" };
+      return { ok: false, blocked: true, error: "OnlyApprovedContracts", report: NO_REPORT };
     }
-    return { ok: false, blocked: false, error: decodeExecuteError(err) };
+    return { ok: false, blocked: false, error: decodeExecuteError(err), report: NO_REPORT };
   }
 }

@@ -16,6 +16,7 @@ import { CHOICE_META, CHOICE_ORDER } from "@/lib/arena/types";
 import { ordinal, price, shortAddress, signedUsd, somi, tone, usd } from "@/lib/arena/format";
 import { ArenaShell } from "./ArenaShell";
 import { DeskCard } from "./DeskCard";
+import { ModelledVsReal } from "./ModelledVsReal";
 import { RoundBar } from "./RoundBar";
 
 export function DeskPage({ deskId }: { deskId: number }) {
@@ -94,6 +95,7 @@ export function DeskPage({ deskId }: { deskId: number }) {
               busy={actions.busy}
               isOwner={isOwner}
               onVote={onVote}
+              scaleRatio={feed.scale?.ratio}
             />
 
             <section className="panel">
@@ -123,6 +125,14 @@ export function DeskPage({ deskId }: { deskId: number }) {
                 </div>
               </dl>
             </section>
+
+            <ModelledVsReal
+              desk={desk}
+              scale={feed.scale}
+              real={feed.realBooks.find((r) => r.deskId === desk.deskId)}
+              mirror={feed.mirror.entries}
+              mirrorSince={feed.mirror.since}
+            />
 
             <section className="panel">
               <h3>This round&apos;s ballot</h3>
