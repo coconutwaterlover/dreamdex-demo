@@ -10,7 +10,9 @@
     "compile": "node scripts/compile.mjs",
     "abis": "node scripts/build-abis.mjs",
     "deploy:arena": "node scripts/deploy-arena.mjs",
-    "arena:e2e": "node scripts/arena-e2e.mjs"
+    "arena:e2e": "node scripts/arena-e2e.mjs",
+    "deploy:stake": "node scripts/deploy-stake-pool.mjs",
+    "stake:e2e": "node scripts/stake-e2e.mjs"
   },
   "dependencies": {
     "@somnia-chain/reactivity": "^0.2.1",

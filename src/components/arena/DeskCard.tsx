@@ -10,6 +10,8 @@ type Props = {
   desk: DeskRow;
   /** Paper-lot / real-lot ratio, for the armed-desk footnote. */
   scaleRatio?: number;
+  /** Live parimutuel pot on this desk, in STT. */
+  pot?: number;
   myVote: Choice;
   connected: boolean;
   busy: string | null;
@@ -24,7 +26,7 @@ function RankBadge({ rank, retired }: { rank: number; retired: boolean }) {
   return <span className={`rank ${medal}`}>{ordinal(rank)}</span>;
 }
 
-export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compact, scaleRatio }: Props) {
+export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compact, scaleRatio, pot }: Props) {
   const [pending, setPending] = useState<Choice>("none");
   const voted = myVote !== "none";
   const total = desk.votes || 1;
@@ -69,6 +71,11 @@ export function DeskCard({ desk, myVote, connected, busy, isOwner, onVote, compa
           </div>
         </div>
         <div className="deskcard-pnl">
+          {!!pot && pot > 0 && (
+            <p className="deskcard-pot" title="Real STT staked on this desk's next move">
+              {pot.toLocaleString("en-US", { maximumFractionDigits: 3 })} STT pot
+            </p>
+          )}
           <p className={`pnl pnl-${pnlTone}`}>{signedUsd(desk.pnl)}</p>
           <p className="foot">USDso profit</p>
         </div>

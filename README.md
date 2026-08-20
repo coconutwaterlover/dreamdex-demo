@@ -18,6 +18,7 @@ Nothing meaningful. This is the part people guess wrong, so plainly:
 | **Vote on any desk** | Free. You pay gas, nothing else. |
 | **Open your own desk** | A **0.05 STT** bond, returned in full by `retireDesk`. |
 | **The 1,000 USDso book** | **Nobody funds it.** It is a paper book — a number in the contract, identical for every desk so profits are comparable. |
+| **Staking** | Optional. Back Buy or Sell with real STT and get paid by the side that was wrong. Minimum 0.001 STT. |
 | **Real orders** | Optional. Only if you grant a session key, and then it is *your* funds in *your* wallet, revocable at any time. |
 
 Shannon is a testnet, so the STT for the bond and the gas comes free from the
@@ -95,6 +96,43 @@ Depends on two contracts it does not own:
   desks executed, the ballots settled, and the clock re-armed itself each time.
 - An armed desk's Sell became a real `placeOrderFor` owned by the desk owner:
   [`0xb2ecdfd5…`](https://shannon-explorer.somnia.network/tx/0xb2ecdfd59c186b5183045e261a6657acb3058356c436472abac80ca9fd86b042).
+
+---
+
+## Staking — winners are paid by losers
+
+Voting is free and always will be. On top of it sits an optional parimutuel pool: back
+**Buy** or **Sell** with real STT, and if your side was right you take your stake back
+plus a share of the other side, minus a 3% rake.
+
+Three properties make this work, and they are the reason it is parimutuel rather than
+profit-sharing:
+
+- **Nothing is ever paid out of profit.** The payout *is* the losing side's stake, which
+  is already in the contract. No round can distribute money it does not hold, so there is
+  no unrealized-gain problem and no owner capital standing behind the payouts.
+- **Sybil is arithmetically unprofitable.** Stake every side and you pay `3S` to receive
+  `S + (losers − rake)` — you lose exactly the rake, every round. Splitting across wallets
+  just pays the rake more often. The defence is the maths, not detection.
+- **Winning means being right, not popular.** Settlement reads `DeskArena.roundScore`,
+  the same price scoring the contributor board already uses. A lone staker on the correct
+  side beats a crowd on the wrong one.
+
+Four rules that follow from the above:
+
+| Rule | Why |
+| --- | --- |
+| **Directional only** — you stake Buy or Sell; Hold stays a free vote | In a quiet market a "no meaningful move" side wins constantly, the pools go dead |
+| **Stakes lock 60s before the boundary** | Otherwise the last staker leans on drift nobody else saw |
+| **Nobody backed the winning side → the pot rolls over** | Builds a jackpot, and it is the one case where being absent costs you |
+| **Flat round → everyone is refunded, no rake** | Nobody called it wrong; on a quiet book wiping both sides would be punitive rather than a result |
+
+`StakePool` only ever *reads* `DeskArena`, so staking was added to a live arena with no
+migration and no redeploy of anything already running. If the pool address is unset the
+app simply has no staking.
+
+Settling is permissionless — anyone can settle any scored round, which unlocks the
+payouts for everyone in it.
 
 ---
 
@@ -302,6 +340,7 @@ minutes to see whether you were right *and* to vote again.
 | `DeskArena.sol` | Desks, ballots, round mids, paper books, points, streaks, seasons |
 | `ArenaClock.sol` | The self-rescheduling Reactivity heartbeat |
 | `ArenaBadge.sol` | Soulbound ERC-721, deployed twice: desk owners and contributors |
+| `StakePool.sol` | Parimutuel staking. Reads the arena, never writes to it |
 
 Badges never store a score — `scoreOf` reads through to the arena at call time:
 

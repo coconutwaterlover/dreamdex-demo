@@ -26,6 +26,11 @@ const STEPS = [
     title: "Your call settles a round later",
     body: "You're scored on the move your own choice was exposed to, in basis points — not on whether the crowd agreed with you. Get it right and your streak grows. The desk with the best profit wins the season.",
   },
+  {
+    n: "5",
+    title: "Or put money behind it",
+    body: "Optional: back Buy or Sell with real STT. Winners are paid out of the losing side's stake — never out of the desk's profit — so the pool is always solvent and a minority call that turns out right pays the most. Staking locks a minute before the boundary, and a flat round refunds everyone.",
+  },
 ];
 
 function useIntro() {
@@ -131,6 +136,14 @@ export function HowItWorks() {
                   <dd>
                     A <strong>paper</strong> book — nobody funds it. Every desk gets the same figure, which
                     is what makes the leaderboard a contest of calls rather than of bankrolls.
+                  </dd>
+                </div>
+                <div>
+                  <dt>Staking (optional)</dt>
+                  <dd>
+                    Back a side with real STT and get paid by whoever was wrong, minus a small rake.
+                    Free voting still scores the leaderboard — staking is the version with money on
+                    it.
                   </dd>
                 </div>
                 <div>

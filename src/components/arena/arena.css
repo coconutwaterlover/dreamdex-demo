@@ -1229,3 +1229,123 @@
     font-size: 0.7rem;
   }
 }
+
+/* ------------------------------------------------------------------ staking */
+
+.stake {
+  border-color: rgba(143, 217, 74, 0.28);
+}
+.stake-pot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.stake-pot dt {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--mute);
+}
+.stake-pot dd {
+  margin: 0.2rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.stake-pot .num {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.stake-mine {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.stake-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.stake-side {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.7rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.stake-side .foot {
+  font-weight: 400;
+}
+.stake-bid.is-on {
+  border-color: rgba(143, 217, 74, 0.6);
+  background: var(--ok-dim);
+  color: var(--ok);
+}
+.stake-ask.is-on {
+  border-color: rgba(255, 122, 61, 0.6);
+  background: var(--warn-dim);
+  color: var(--warn);
+}
+.stake-side:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.stake-amount {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.stake-amount label {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1 1 9rem;
+}
+.stake-amount input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 0.6rem 0.75rem;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+.stake-amount input:focus {
+  outline: none;
+  border-color: rgba(143, 217, 74, 0.5);
+}
+.stake-presets {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.stake-projection {
+  margin: 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: rgba(143, 217, 74, 0.08);
+  border: 1px solid rgba(143, 217, 74, 0.22);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.deskcard-pot {
+  margin: 0.15rem 0 0;
+  text-align: right;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 560px) {
+  .stake-pot {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}

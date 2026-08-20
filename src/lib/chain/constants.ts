@@ -34,6 +34,7 @@ export const SHANNON_DEPLOYMENT = {
   deskBadge: "0x765e2b5bf6548ac514f31130ca07babd4dbb56b8",
   contributorBadge: "0xee84b5fc635d590e5a9b0ce7396d4eb8bb8d0966",
   clock: "0x5d299bd6f63546b14e3b4367974ad94819e1a643",
+  stakePool: "0x0c5d0a2b62eff6176bfddd6967d2c7e60bda18b1",
   sessionKey: "0x4b051B5D2038B5054f73020bE1F99b738D539580",
 } as const;
 
@@ -54,6 +55,10 @@ export const CONTRIBUTOR_BADGE_ADDRESS = configured(
 export const ARENA_CLOCK_ADDRESS = configured(
   process.env.NEXT_PUBLIC_ARENA_CLOCK_ADDRESS,
   SHANNON_DEPLOYMENT.clock,
+);
+export const STAKE_POOL_ADDRESS = configured(
+  process.env.NEXT_PUBLIC_STAKE_POOL_ADDRESS,
+  SHANNON_DEPLOYMENT.stakePool,
 );
 
 export const HOUSE_OWNER_ADDRESS = process.env.NEXT_PUBLIC_HOUSE_OWNER_ADDRESS as Address | undefined;
@@ -80,6 +85,10 @@ export function isContributorBadgeConfigured(): boolean {
 
 export function isClockConfigured(): boolean {
   return isHexAddress(ARENA_CLOCK_ADDRESS);
+}
+
+export function isStakePoolConfigured(): boolean {
+  return isHexAddress(STAKE_POOL_ADDRESS);
 }
 
 export function addressHref(address: string | undefined): string | null {

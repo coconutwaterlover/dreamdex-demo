@@ -17,6 +17,8 @@ import { ordinal, price, shortAddress, signedUsd, somi, tone, usd } from "@/lib/
 import { ArenaShell } from "./ArenaShell";
 import { DeskCard } from "./DeskCard";
 import { ModelledVsReal } from "./ModelledVsReal";
+import { MyStakes } from "./MyStakes";
+import { StakePanel } from "./StakePanel";
 import { RoundBar } from "./RoundBar";
 
 export function DeskPage({ deskId }: { deskId: number }) {
@@ -96,6 +98,7 @@ export function DeskPage({ deskId }: { deskId: number }) {
               isOwner={isOwner}
               onVote={onVote}
               scaleRatio={feed.scale?.ratio}
+              pot={feed.pools.find((p) => p.deskId === desk.deskId)?.pot}
             />
 
             <section className="panel">
@@ -125,6 +128,40 @@ export function DeskPage({ deskId }: { deskId: number }) {
                 </div>
               </dl>
             </section>
+
+            <StakePanel
+              desk={desk}
+              pool={feed.pools.find((p) => p.deskId === desk.deskId)}
+              config={feed.stake}
+              mine={feed.myStakes.find(
+                (m) => m.deskId === desk.deskId && m.roundId === feed.state.roundId,
+              )}
+              connected={!!address}
+              busy={actions.busy}
+              secondsToLock={feed.stake?.secondsToLock ?? 0}
+              onStake={async (id, side, amount) => {
+                await actions.stakeOn(id, side, amount);
+                await feed.refresh();
+              }}
+            />
+
+            <MyStakes
+              stakes={feed.myStakes.filter((m) => m.deskId === desk.deskId)}
+              pools={feed.pools}
+              busy={actions.busy}
+              onClaim={async (r, d) => {
+                await actions.claimStake(r, d);
+                await feed.refresh();
+              }}
+              onClaimAll={async (ps) => {
+                await actions.claimAll(ps);
+                await feed.refresh();
+              }}
+              onSettle={async (r, d) => {
+                await actions.settlePool(r, d);
+                await feed.refresh();
+              }}
+            />
 
             <ModelledVsReal
               desk={desk}

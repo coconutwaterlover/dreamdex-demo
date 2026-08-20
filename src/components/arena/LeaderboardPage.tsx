@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { useArena } from "@/hooks/useArena";
 import { useArenaActions } from "@/hooks/useArenaActions";
 import { SEASON_ROUNDS, addressHref } from "@/lib/chain/constants";
-import { clock, signedUsd } from "@/lib/arena/format";
+import { clock, ordinal, shortAddress, signedUsd } from "@/lib/arena/format";
 import { ArenaShell } from "./ArenaShell";
 import { ContributorBoard } from "./ContributorBoard";
 import { DeskBoard } from "./DeskBoard";
@@ -14,7 +14,7 @@ export function LeaderboardPage() {
   const { address } = useAccount();
   const feed = useArena(address);
   const actions = useArenaActions();
-  const [tab, setTab] = useState<"desks" | "contributors">("desks");
+  const [tab, setTab] = useState<"desks" | "contributors" | "stakers">("desks");
 
   const onSettle = useCallback(async () => {
     if (!address) return;
@@ -58,10 +58,63 @@ export function LeaderboardPage() {
           >
             Contributors ({feed.contributors.length})
           </button>
+          {!!feed.stake && (
+            <button
+              className={tab === "stakers" ? "pill is-on" : "pill"}
+              onClick={() => setTab("stakers")}
+            >
+              Stakers ({feed.stakers.length})
+            </button>
+          )}
         </div>
 
         <section className="panel">
-          {tab === "desks" ? (
+          {tab === "stakers" ? (
+            <>
+              {feed.stakers.length ? (
+                <div className="board-scroll">
+                  <table className="board">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Staker</th>
+                        <th className="right">Net winnings</th>
+                        <th className="right">Staked</th>
+                        <th className="right">Positions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feed.stakers.map((s) => {
+                        const isMe = !!address && s.wallet.toLowerCase() === address.toLowerCase();
+                        return (
+                          <tr key={s.wallet} className={isMe ? "is-me" : undefined}>
+                            <td className="dim">{ordinal(s.rank)}</td>
+                            <td>
+                              {shortAddress(s.wallet)}
+                              {isMe && <span className="tag tag-you">you</span>}
+                            </td>
+                            <td className={`right num ${s.netWinnings > 0 ? "up" : s.netWinnings < 0 ? "down" : ""}`}>
+                              {s.netWinnings > 0 ? "+" : ""}
+                              {s.netWinnings.toFixed(4)} STT
+                            </td>
+                            <td className="right num dim">{s.stakedTotal.toFixed(4)}</td>
+                            <td className="right num dim">{s.positionsStaked}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="empty">Nobody has staked yet. The first pool opens the board.</p>
+              )}
+              <p className="foot">
+                Realized winnings, paid by the other side. A {(((feed.stake?.ownerRakeBps ?? 0) + (feed.stake?.treasuryRakeBps ?? 0)) / 100).toFixed(0)}% rake goes to the
+                desk owner and the treasury — which is also why staking every side is a losing
+                strategy, and why nobody needs to police it.
+              </p>
+            </>
+          ) : tab === "desks" ? (
             <>
               <DeskBoard desks={feed.desks} me={address} />
               <p className="foot">

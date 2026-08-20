@@ -4,6 +4,7 @@ const targets = [
   ["DeskArena.sol", "DeskArena"],
   ["ArenaBadge.sol", "ArenaBadge"],
   ["ArenaClock.sol", "ArenaClock"],
+  ["StakePool.sol", "StakePool"],
 ];
 
 for (const [file, name] of targets) {

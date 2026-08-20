@@ -95,6 +95,52 @@ export type RealBook = {
   somi: number;
 };
 
+/** A desk's parimutuel pool for one round. Amounts are STT. */
+export type PoolRow = {
+  roundId: number;
+  deskId: number;
+  bid: number;
+  ask: number;
+  rollover: number;
+  pot: number;
+  payout: number;
+  winningStake: number;
+  winner: number;
+  settled: boolean;
+  refunded: boolean;
+  open: boolean;
+  lockAt: number;
+  /** What 1 STT on this side returns if it wins, net of rake. 0 when the side is empty. */
+  bidOdds: number;
+  askOdds: number;
+};
+
+export type MyStake = {
+  roundId: number;
+  deskId: number;
+  bid: number;
+  ask: number;
+  claimed: boolean;
+  claimable: number;
+};
+
+export type StakerRow = {
+  wallet: string;
+  netWinnings: number;
+  stakedTotal: number;
+  positionsStaked: number;
+  rank: number;
+};
+
+export type StakeConfig = {
+  address: string;
+  lockSeconds: number;
+  minStake: number;
+  ownerRakeBps: number;
+  treasuryRakeBps: number;
+  secondsToLock: number;
+};
+
 export type ArenaSnapshot = {
   configured: boolean;
   state: ArenaState;
@@ -103,6 +149,9 @@ export type ArenaSnapshot = {
   clock: ClockState | null;
   scale: Scale | null;
   realBooks: RealBook[];
+  stake: StakeConfig | null;
+  pools: PoolRow[];
+  stakers: StakerRow[];
   mirror: { entries: MirrorRow[]; since: number };
   addresses: {
     arena: string | null;

@@ -8,6 +8,7 @@ const targets = [
   ["DeskArena.sol", "DeskArena", "arena-abi.ts", "deskArenaAbi"],
   ["ArenaBadge.sol", "ArenaBadge", "arena-badge-abi.ts", "arenaBadgeAbi"],
   ["ArenaClock.sol", "ArenaClock", "arena-clock-abi.ts", "arenaClockAbi"],
+  ["StakePool.sol", "StakePool", "stake-pool-abi.ts", "stakePoolAbi"],
 ];
 
 for (const [file, name, out, exportName] of targets) {

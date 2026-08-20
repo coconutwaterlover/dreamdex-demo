@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ROUND_SECONDS } from "@/lib/chain/constants";
-import type { ArenaSnapshot, Choice } from "@/lib/arena/types";
+import type { ArenaSnapshot, Choice, MyStake } from "@/lib/arena/types";
 import { CODE_CHOICE } from "@/lib/arena/types";
 
 export type ArenaFeed = ArenaSnapshot & {
   myVotes: Record<number, Choice>;
+  myStakes: MyStake[];
   error: string | null;
   loading: boolean;
   /** Ticks down locally between polls so the clock never looks frozen. */
@@ -39,6 +40,9 @@ function emptyFeed(): ArenaSnapshot {
     clock: null,
     scale: null,
     realBooks: [],
+    stake: null,
+    pools: [],
+    stakers: [],
     mirror: { entries: [], since: Date.now() },
     addresses: {
       arena: null,
@@ -53,6 +57,7 @@ function emptyFeed(): ArenaSnapshot {
 export function useArena(voter?: string): ArenaFeed {
   const [snapshot, setSnapshot] = useState<ArenaSnapshot>(emptyFeed);
   const [myVotes, setMyVotes] = useState<Record<number, Choice>>({});
+  const [myStakes, setMyStakes] = useState<MyStake[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
@@ -66,6 +71,7 @@ export function useArena(voter?: string): ArenaFeed {
       const res = await fetch(`/api/arena${query}`, { cache: "no-store" });
       const data = (await res.json()) as ArenaSnapshot & {
         myVotes?: Record<string, number>;
+        myStakes?: MyStake[];
         error?: string;
       };
       setSnapshot(data);
@@ -74,6 +80,7 @@ export function useArena(voter?: string): ArenaFeed {
         votes[Number(deskId)] = CODE_CHOICE[code] ?? "none";
       }
       setMyVotes(votes);
+      setMyStakes(data.myStakes ?? []);
       setError(data.error ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reach the arena");
@@ -109,5 +116,5 @@ export function useArena(voter?: string): ArenaFeed {
     if (secondsLeft > 0) rolled.current = snapshot.state.roundId;
   }, [secondsLeft, snapshot.state.roundId, refresh]);
 
-  return { ...snapshot, myVotes, error, loading, secondsLeft, refresh };
+  return { ...snapshot, myVotes, myStakes, error, loading, secondsLeft, refresh };
 }

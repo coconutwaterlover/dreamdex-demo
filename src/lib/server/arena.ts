@@ -2,9 +2,12 @@ import { formatUnits, type Address } from "viem";
 import { deskArenaAbi } from "@/lib/chain/arena-abi";
 import { arenaBadgeAbi } from "@/lib/chain/arena-badge-abi";
 import { arenaClockAbi } from "@/lib/chain/arena-clock-abi";
+import { stakePoolAbi } from "@/lib/chain/stake-pool-abi";
 import {
   ARENA_ADDRESS,
   ARENA_CLOCK_ADDRESS,
+  STAKE_POOL_ADDRESS,
+  isStakePoolConfigured,
   CONTRIBUTOR_BADGE_ADDRESS,
   DESK_BADGE_ADDRESS,
   OPERATOR_REGISTRY,
@@ -53,6 +56,9 @@ export function emptySnapshot(): ArenaSnapshot {
     clock: null,
     scale: null,
     realBooks: [],
+    stake: null,
+    pools: [],
+    stakers: [],
     mirror: { entries: [], since: Date.now() },
     addresses: {
       arena: null,
@@ -205,9 +211,10 @@ export async function readArena(): Promise<ArenaSnapshot> {
     }
   }
 
-  const [scale, realBooks] = await Promise.all([
+  const [scale, realBooks, staking] = await Promise.all([
     readScale(client, address).catch(() => null),
     readRealBooks(client, desks).catch(() => []),
+    readStaking(client, roundId).catch(() => ({ stake: null, pools: [], stakers: [] })),
   ]);
 
   const mirror = readMirror();
@@ -232,6 +239,9 @@ export async function readArena(): Promise<ArenaSnapshot> {
     clock,
     scale,
     realBooks,
+    stake: staking.stake,
+    pools: staking.pools,
+    stakers: staking.stakers,
     mirror: {
       entries: mirror.entries.map((e) => ({
         roundId: e.roundId,
@@ -334,4 +344,102 @@ async function readRealBooks(client: Client, desks: DeskRow[]) {
       };
     }),
   );
+}
+
+const ETH = (v: bigint) => Number(formatUnits(v, 18));
+
+/**
+ * The parimutuel layer. It reads the arena but the arena knows nothing about it, so
+ * this stays entirely optional — an unconfigured pool just leaves the fields null.
+ */
+async function readStaking(client: Client, roundId: bigint) {
+  if (!isStakePoolConfigured() || !STAKE_POOL_ADDRESS) {
+    return { stake: null, pools: [], stakers: [] };
+  }
+  const pool = { address: STAKE_POOL_ADDRESS as Address, abi: stakePoolAbi } as const;
+  const [cfg, secondsToLock, rawPools, rawStakers] = await Promise.all([
+    client.readContract({ ...pool, functionName: "config" }),
+    client.readContract({ ...pool, functionName: "secondsToLock" }),
+    client.readContract({ ...pool, functionName: "poolsForRound", args: [roundId] }),
+    readAllPages((offset, limit) =>
+      client.readContract({ ...pool, functionName: "stakerBoard", args: [offset, limit] }),
+    ),
+  ]);
+
+  const stakers = [...rawStakers]
+    .map((s) => ({
+      wallet: s.wallet,
+      netWinnings: ETH(s.netWinnings),
+      stakedTotal: ETH(s.stakedTotal),
+      positionsStaked: Number(s.positionsStaked),
+    }))
+    .sort((a, b) => b.netWinnings - a.netWinnings || b.stakedTotal - a.stakedTotal)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+
+  return {
+    stake: {
+      address: STAKE_POOL_ADDRESS,
+      lockSeconds: Number(cfg.lockSeconds),
+      minStake: ETH(cfg.minStake),
+      ownerRakeBps: cfg.ownerRakeBps,
+      treasuryRakeBps: cfg.treasuryRakeBps,
+      secondsToLock: Number(secondsToLock),
+    },
+    pools: rawPools.map((p) => ({
+      roundId: Number(p.roundId),
+      deskId: Number(p.deskId),
+      bid: ETH(p.bid),
+      ask: ETH(p.ask),
+      rollover: ETH(p.rollover),
+      pot: ETH(p.pot),
+      payout: ETH(p.payout),
+      winningStake: ETH(p.winningStake),
+      winner: p.winner,
+      settled: p.settled,
+      refunded: p.refunded,
+      open: p.open,
+      lockAt: Number(p.lockAt),
+      bidOdds: Number(p.bidOddsE18) / 1e18,
+      askOdds: Number(p.askOddsE18) / 1e18,
+    })),
+    stakers,
+  };
+}
+
+/** A wallet's open and settled positions across the rounds still worth showing. */
+export async function readMyStakes(staker: Address, roundId: number, deskCount: number) {
+  if (!isStakePoolConfigured() || !STAKE_POOL_ADDRESS || deskCount === 0) return [];
+  const client = getPublicClient();
+  const pool = { address: STAKE_POOL_ADDRESS as Address, abi: stakePoolAbi } as const;
+  const rounds = [roundId, roundId - 1, roundId - 2, roundId - 3, roundId - 4].filter((r) => r > 0);
+  const jobs: Promise<{
+    roundId: number;
+    deskId: number;
+    bid: number;
+    ask: number;
+    claimed: boolean;
+    claimable: number;
+  } | null>[] = [];
+  for (const r of rounds) {
+    for (let d = 0; d < deskCount; d++) {
+      jobs.push(
+        client
+          .readContract({ ...pool, functionName: "stakeOf", args: [BigInt(r), BigInt(d), staker] })
+          .then(([bid, ask, claimed, payable]) =>
+            bid + ask === BigInt(0)
+              ? null
+              : {
+                  roundId: r,
+                  deskId: d,
+                  bid: ETH(bid),
+                  ask: ETH(ask),
+                  claimed,
+                  claimable: ETH(payable),
+                },
+          )
+          .catch(() => null),
+      );
+    }
+  }
+  return (await Promise.all(jobs)).filter((x): x is NonNullable<typeof x> => x !== null);
 }

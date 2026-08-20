@@ -148,6 +148,7 @@ export function ArenaPage() {
                     isOwner={!!address && desk.owner.toLowerCase() === address.toLowerCase()}
                     onVote={onVote}
                     scaleRatio={feed.scale?.ratio}
+                    pot={feed.pools.find((p) => p.deskId === desk.deskId)?.pot}
                   />
                 ))}
               </div>
