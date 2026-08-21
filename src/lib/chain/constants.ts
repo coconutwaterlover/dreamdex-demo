@@ -20,6 +20,9 @@ export const OPERATOR_SELECTORS = [PLACE_ORDER_FOR, CANCEL_ORDER_FOR, REDUCE_ORD
 export const DEFAULT_RPC = "https://api.infra.testnet.somnia.network";
 export const SHANNON_EXPLORER = "https://shannon-explorer.somnia.network";
 
+export const GITHUB_REPO_URL = "https://github.com/coconutwaterlover/dreamdex-demo";
+export const GITHUB_OWNER_URL = "https://github.com/coconutwaterlover";
+
 /** Where a contributor goes to trade their own call for real. */
 export const DREAMDEX_APP_URL = "https://app.dreamdex.io";
 export const DREAMDEX_DOCS_URL = "https://docs.dreamdex.io";

@@ -1125,6 +1125,25 @@
   color: var(--mute);
   text-align: center;
   line-height: 1.5;
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.arena-credit {
+  color: var(--fog);
+}
+.arena-credit a {
+  color: var(--mango);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.arena-credit a:hover {
+  border-bottom-color: currentColor;
+}
+.arena-credit-sep {
+  margin: 0 0.45rem;
+  opacity: 0.5;
 }
 
 @media (max-width: 1020px) {

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { somniaShannon } from "@/lib/chain/config";
 import { shortAddress } from "@/lib/arena/format";
+import { GITHUB_OWNER_URL, GITHUB_REPO_URL } from "@/lib/chain/constants";
 
 const NAV = [
   { href: "/", label: "Arena" },
@@ -71,6 +72,18 @@ export function ArenaShell({ children }: { children: ReactNode }) {
         <span>
           Somnia Shannon testnet · desks trade a paper book marked to the live SOMI:USDso mid; armed desks
           also post real orders on DreamDEX.
+        </span>
+        <span className="arena-credit">
+          built with coconut <span aria-hidden="true">🥥</span> by{" "}
+          <a href={GITHUB_OWNER_URL} target="_blank" rel="noreferrer">
+            coconutwaterlover
+          </a>
+          <span className="arena-credit-sep" aria-hidden="true">
+            ·
+          </span>
+          <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
+            source on GitHub
+          </a>
         </span>
       </footer>
     </div>
