@@ -88,13 +88,46 @@ Depends on two contracts it does not own:
 | `OperatorPermissionsRegistry` | [`0x15C7e8CE38F021c5b45d098AaD788f63090bF20A`](https://shannon-explorer.somnia.network/address/0x15C7e8CE38F021c5b45d098AaD788f63090bF20A) |
 | Reactivity precompile | `0x0000000000000000000000000000000000000100` |
 
+The app answers on four hostnames, all pointing at the same deployment:
+`dreamdesk-arena`, `dreamdex-arena`, `dreamdesk-demo`, `dreamdex-demo`.
+
 **Proven live, not just built:**
 
+- **The clock has not missed a beat since deploy.** It has run unattended for days,
+  through several seasons and through the machine that deployed it restarting, at
+  roughly 0.08 STT/hour — so its 45 STT funds it for weeks. `ArenaClock.fireCount` is
+  the receipt; `arenaState().lastTickedRound` equalling `roundId` is the proof it is
+  current.
+- **An armed desk's Sell became a real order** owned by the desk owner:
+  [`0xb2ecdfd5…`](https://shannon-explorer.somnia.network/tx/0xb2ecdfd59c186b5183045e261a6657acb3058356c436472abac80ca9fd86b042).
 - `npm run arena:e2e` passes end to end against the real chain — creates desks, votes
   from two wallets, follows the clock through four real boundaries, and asserts the
   desks executed, the ballots settled, and the clock re-armed itself each time.
-- An armed desk's Sell became a real `placeOrderFor` owned by the desk owner:
-  [`0xb2ecdfd5…`](https://shannon-explorer.somnia.network/tx/0xb2ecdfd59c186b5183045e261a6657acb3058356c436472abac80ca9fd86b042).
+
+---
+
+## The app
+
+| Route | |
+| --- | --- |
+| `/` | The arena — shared countdown, desks ranked by profit, inline Buy / Sell / Wait, your standing |
+| `/desk/[id]` | One desk: its book, this round's ballot, and owner controls (grant, approve, go live, retire) |
+| `/create` | Open a desk against the bond |
+| `/leaderboard` | Full desk and contributor standings for the season |
+| `/orchard` | Both soulbound collections |
+| `/faq` | Fourteen answers, written from questions people actually asked |
+| `/api/arena` | One batched read of the whole arena — state, desks, contributors, clock |
+| `/api/keeper/tick` | Heals a dropped beat and mirrors armed desks onto the real book |
+| `/api/nft/desk/[id]`, `/api/nft/contributor/[id]` | ERC-721 metadata, scores read live off the arena |
+
+A first visit opens a two-page wizard — *vote → wait for the round → win* on one page,
+*open a desk → let the crowd vote → earn* on the other — dismissed into `localStorage`
+and reopenable from the rail. It exists because the previous version was four dense
+paragraphs that nobody read.
+
+The FAQ leads with **cash vs equity**, which is the answer that stops the app looking
+broken: a desk that buys sees its cash fall from 1,000 to 910 and reads a loss, when
+equity is unchanged and profit is exactly zero.
 
 ---
 
@@ -361,12 +394,13 @@ The Next.js app does exactly two things the chain cannot:
 ```
 contracts/          DeskArena.sol, ArenaClock.sol, ArenaBadge.sol
 scripts/            deploy, compile, ABI generation, and the live e2e proofs
-src/app/            routes: / · /desk/[id] · /create · /leaderboard · /orchard
+src/app/            routes: / · /desk/[id] · /create · /leaderboard · /orchard · /faq
 src/app/api/        arena (read) · keeper/tick (heal + mirror) · nft/* (metadata)
 src/components/     arena UI
 src/hooks/          useArena (poll) · useArenaActions (writes) · useDeskOwner (grants)
 src/lib/chain/      addresses, chain config, generated ABIs
 src/lib/server/     arena reader, keeper, order execution, badge metadata
+docs/               the build plan, and the event-contract findings
 ```
 
 `src/lib/chain/*-abi.ts` is generated — run `npm run abis` after touching a contract
@@ -401,6 +435,7 @@ can own its subscription, the rest is gas. Get testnet STT from the
 | `npm run arena:e2e` | Full live proof against Shannon: create, vote, follow the clock, settle |
 | `node scripts/arm-desk.mjs <id>` | Grant the session key + approve the quote token for a desk |
 | `node scripts/live-order-test.mjs <id>` | Prove an armed desk's move becomes a real order |
+| `node scripts/set-badge-uri.mjs` | Repoint both badges' `tokenURI` base after a domain change |
 
 `npm run arena:e2e` runs against the real chain and takes about twenty minutes, because
 it waits out real five-minute rounds and asserts the clock re-armed itself each time.
@@ -448,6 +483,27 @@ JSON blob, including `clock.fireCount` and `state.lastTickedRound`.
 
 ---
 
+## Branches
+
+`master` is what production runs. Three branches carry work that is finished and proven
+but deliberately not merged, because each changes what the app *is* rather than fixing
+it:
+
+| Branch | What it adds | State |
+| --- | --- | --- |
+| `claude/arena-stake-pool` | **`StakePool.sol` — parimutuel staking.** Back Buy or Sell with real STT; winners are paid out of the losing side's stake, minus a 3% rake. Live odds that reprice as you type, a positions table with permissionless settle and claim, and a stakers leaderboard. | Deployed and verified on Shannon end to end: a real round settled, the winner was paid `0.2925` from a `0.30` pot, the 3% rake came off exactly, and the pot balanced to the wei. `npm run stake:e2e`. |
+| `claude/arena-modelled-vs-real` | A **modelled-vs-real panel** on each desk page, putting the paper book beside the real leg — lot size, position, balance — with the scoring column marked and the real one labelled *no effect on rank*. Also prices the real order from the arena's settled mid instead of the touch seconds later, and reports the difference as slip. | Deployed to a preview. Doesn't fix the paper/real gap; makes it a visible number. |
+| `claude/event-contracts-research` | `docs/EVENT-CONTRACTS.md` — findings from probing dreamDEX **event contracts** as a replacement for the staking layer, checked on-chain rather than read off the docs. | Research only, no app changes. |
+
+The short version of the event-contract findings, because it changes the roadmap:
+creating a market series is **not** permissioned — we called the factory and own the
+first `MarketCreator` on Shannon, and a SOMI series at `intervalSec: 300` registers
+cleanly. It stops at operator identity and oracle credit, and the testnet venue has been
+dormant since 2026-08-04. If that unblocks, event contracts replace `StakePool`,
+`ArenaClock` and the paper book at once — the desk layer doesn't move.
+
+---
+
 ## Known limits
 
 Worth stating plainly, because they are the things to fix before this is more than a
@@ -489,3 +545,9 @@ testnet showcase:
   `/api/keeper/tick`. If you want a third belt, point a scheduler at that route.
 - **The server is not load-bearing.** Ballots, tallies, mids, books, points and badges are
   all on-chain. Turn the app off and the arena keeps running.
+- **Moving domain is two steps, not one.** The badges' `tokenURI` base lives *on-chain*, so
+  changing the app's host also means `node scripts/set-badge-uri.mjs` — otherwise explorers
+  keep resolving metadata at the old host. Set `NEXT_PUBLIC_APP_URL` first.
+- **Vercel previews use a separate environment.** Env vars set for Production are not
+  visible to preview deployments; a preview missing `SESSION_PRIVATE_KEY` silently runs a
+  read-only keeper and says so in `/api/keeper/tick`'s `notes`.
