@@ -155,8 +155,8 @@ export function HowItWorks() {
               <button className="btn btn-accent btn-lg" onClick={close}>
                 Got it — show me the desks
               </button>
-              <a className="foot" href={DREAMDEX_DOCS_URL} target="_blank" rel="noreferrer">
-                dreamDEX docs →
+              <a className="foot" href="/faq">
+                Read the FAQ →
               </a>
             </footer>
           </div>
