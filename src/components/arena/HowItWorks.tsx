@@ -1,44 +1,126 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DREAMDEX_DOCS_URL } from "@/lib/chain/constants";
 
-const SEEN_KEY = "dreamdesk-arena-intro-v1";
+const SEEN_KEY = "dreamdesk-arena-intro-v2";
 
-const STEPS = [
+type Step = { icon: keyof typeof ICONS; title: string; body: string };
+type Page = { eyebrow: string; title: string; lede: string; steps: Step[]; note: string };
+
+/**
+ * Drawn rather than emoji: glyph coverage for things like the ballot box and stopwatch
+ * varies by platform, so half the row rendered flat while the rest came out in colour.
+ * These are deterministic and inherit the palette.
+ */
+const ICONS = {
+  vote: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 10.5l2.5 2.5L16 8" />
+      <path d="M6 20h12" />
+    </svg>
+  ),
+  clock: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2" />
+      <path d="M9 2h6" />
+    </svg>
+  ),
+  trophy: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
+      <path d="M7 6H4v1a4 4 0 0 0 3 3.9M17 6h3v1a4 4 0 0 1-3 3.9" />
+      <path d="M12 14v3m-3 4h6l-.7-4h-4.6z" />
+    </svg>
+  ),
+  desk: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-5 9 5" />
+      <path d="M5 9v11M19 9v11M3 20h18" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  ),
+  crowd: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="2.6" />
+      <circle cx="16.5" cy="9" r="2.2" />
+      <path d="M3 19c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+      <path d="M14 19c0-2.2 1.5-4 3.5-4S21 16.8 21 19" />
+    </svg>
+  ),
+  earn: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 18l5-5 3.5 3.5L20 9" />
+      <path d="M15 9h5v5" />
+      <path d="M3 21h18" />
+    </svg>
+  ),
+} as const;
+
+
+/**
+ * Two paths, two pages: what a voter does, and what a desk owner does. Deliberately
+ * three steps each — the previous version was four dense paragraphs and nobody read it.
+ */
+const PAGES: Page[] = [
   {
-    n: "1",
-    title: "One clock for the whole arena",
-    body: "A round is five minutes, shared by every desk. They all open and close on the same boundary, so profit is measured over identical windows.",
+    eyebrow: "If you want to play",
+    title: "Call the market. Climb the board.",
+    lede: "Every desk in the arena trades the same five-minute round. You tell it what to do next.",
+    steps: [
+      {
+        icon: "vote",
+        title: "Vote on a move",
+        body: "Pick Buy, Sell or Wait on any desk. One vote per wallet, per desk, per round. Free — you only pay gas.",
+      },
+      {
+        icon: "clock",
+        title: "Wait for the round",
+        body: "At the boundary the desk executes the crowd's choice at the live market price, on-chain.",
+      },
+      {
+        icon: "trophy",
+        title: "If the move made money, you win",
+        body: "You're scored on your own call, not on whether the crowd agreed. Get it right and your streak grows.",
+      },
+    ],
+    note: "Your first vote mints a soulbound contributor badge and puts you on the leaderboard.",
   },
   {
-    n: "2",
-    title: "The crowd picks each desk's next move",
-    body: "Buy, Sell or Wait — one vote per wallet, per desk, per round. Ballots are transactions, so the tally is public and nobody has to trust a server with the count. A tie resolves to Wait: the crowd has to actually agree to move a book.",
-  },
-  {
-    n: "3",
-    title: "The boundary executes",
-    body: "The arena reads the SOMI:USDso mid straight off the dreamDEX book — no oracle — then trades one lot per desk in the winning direction. Desks whose owner granted a session key have the same move posted as a real order they still own.",
-  },
-  {
-    n: "4",
-    title: "Your call settles a round later",
-    body: "You're scored on the move your own choice was exposed to, in basis points — not on whether the crowd agreed with you. Get it right and your streak grows. The desk with the best profit wins the season.",
+    eyebrow: "If you want to run one",
+    title: "Open a desk. Let the crowd trade it.",
+    lede: "A desk is a book plus an audience. You bring the book; they bring the calls.",
+    steps: [
+      {
+        icon: "desk",
+        title: "Open a desk",
+        body: "Pick a name and post a 0.05 STT bond — returned in full when you retire it. The same transaction mints your owner badge.",
+      },
+      {
+        icon: "crowd",
+        title: "Let the community vote its next move",
+        body: "Anyone can vote on your desk. The majority decides what it trades each round; a tie means it sits still.",
+      },
+      {
+        icon: "earn",
+        title: "Earn",
+        body: "Best profit wins the season. Grant a session key and your desk's winning move is also placed as a real order on dreamDEX — your funds, your wallet, revocable any time.",
+      },
+    ],
+    note: "The 1,000 USDso book is paper — nobody funds it. Every desk gets the same figure so profit compares calls, not bankrolls.",
   },
 ];
 
 function useIntro() {
   const [open, setOpen] = useState(false);
-
   useEffect(() => {
     try {
       if (!window.localStorage.getItem(SEEN_KEY)) setOpen(true);
     } catch {
-      // private mode / storage blocked — just don't auto-open
+      // storage blocked — just don't auto-open
     }
   }, []);
-
   const close = useCallback(() => {
     setOpen(false);
     try {
@@ -47,22 +129,20 @@ function useIntro() {
       // ignore
     }
   }, []);
-
   return { open, setOpen, close };
 }
 
-/**
- * Shown once on a first visit, and reopenable from the rail. The arena has enough
- * moving parts that a newcomer needs the rules before the vote buttons make sense —
- * especially what it costs, which is the thing everyone guesses wrong.
- */
 export function HowItWorks() {
   const { open, setOpen, close } = useIntro();
+  const [page, setPage] = useState(0);
+  const last = page === PAGES.length - 1;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
+      if (e.key === "ArrowRight") setPage((p) => Math.min(p + 1, PAGES.length - 1));
+      if (e.key === "ArrowLeft") setPage((p) => Math.max(p - 1, 0));
     };
     window.addEventListener("keydown", onKey);
     const { overflow } = document.body.style;
@@ -73,10 +153,18 @@ export function HowItWorks() {
     };
   }, [open, close]);
 
+  const current = PAGES[page];
+
   return (
     <>
       <section className="how">
-        <button className="how-toggle" onClick={() => setOpen(true)}>
+        <button
+          className="how-toggle"
+          onClick={() => {
+            setPage(0);
+            setOpen(true);
+          }}
+        >
           <span>How the arena works</span>
           <span className="how-chev">?</span>
         </button>
@@ -85,80 +173,79 @@ export function HowItWorks() {
       {open && (
         <div className="modal-backdrop" onClick={close} role="presentation">
           <div
-            className="modal"
+            className="modal wizard"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="intro-title"
+            aria-labelledby="wiz-title"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="modal-head">
               <div>
-                <p className="eyebrow">DreamDesk Arena</p>
-                <h2 id="intro-title">Every desk. One clock. Best profit wins.</h2>
+                <p className="eyebrow">{current.eyebrow}</p>
+                <h2 id="wiz-title">{current.title}</h2>
               </div>
               <button className="modal-x" onClick={close} aria-label="Close">
                 ×
               </button>
             </header>
 
-            <ol className="modal-steps">
-              {STEPS.map((step) => (
-                <li key={step.n}>
-                  <span className="modal-step-n">{step.n}</span>
-                  <div>
+            <p className="wiz-lede">{current.lede}</p>
+
+            <ol className="wiz-flow">
+              {current.steps.map((step, i) => (
+                <li key={step.title}>
+                  <div className="wiz-card">
+                    <span className={`wiz-icon wiz-icon-${i}`} aria-hidden="true">
+                      {ICONS[step.icon]}
+                    </span>
                     <h4>{step.title}</h4>
                     <p>{step.body}</p>
                   </div>
+                  {i < current.steps.length - 1 && (
+                    <span className="wiz-arrow" aria-hidden="true">
+                      →
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>
 
-            <div className="modal-cost">
-              <h4>What it costs</h4>
-              <dl>
-                <div>
-                  <dt>Vote on any desk</dt>
-                  <dd>Free — you only pay gas.</dd>
-                </div>
-                <div>
-                  <dt>Open your own desk</dt>
-                  <dd>
-                    A <strong>0.05 STT</strong> bond, returned in full when you retire it.
-                  </dd>
-                </div>
-                <div>
-                  <dt>The 1,000 USDso book</dt>
-                  <dd>
-                    A <strong>paper</strong> book — nobody funds it. Every desk gets the same figure, which
-                    is what makes the leaderboard a contest of calls rather than of bankrolls.
-                  </dd>
-                </div>
-                <div>
-                  <dt>Real orders (optional)</dt>
-                  <dd>
-                    Only if you grant a session key. A desk marked <em>live orders</em> also places a real,
-                    minimum-size order on dreamDEX — your own funds, your own wallet, revocable any time.
-                    It is proof the session key works; the leaderboard still scores the paper book.
-                  </dd>
-                </div>
-              </dl>
-              <p className="foot">
-                This is Somnia Shannon testnet — STT comes free from the{" "}
-                <a href="https://testnet.somnia.network/" target="_blank" rel="noreferrer">
-                  faucet
-                </a>
-                .
-              </p>
-            </div>
+            <p className="wiz-note">{current.note}</p>
 
-            <footer className="modal-foot">
-              <button className="btn btn-accent btn-lg" onClick={close}>
-                Got it — show me the desks
-              </button>
-              <a className="foot" href="/faq">
-                Read the FAQ →
-              </a>
+            <footer className="wiz-foot">
+              <div className="wiz-dots" role="tablist" aria-label="Pages">
+                {PAGES.map((p, i) => (
+                  <button
+                    key={p.title}
+                    role="tab"
+                    aria-selected={i === page}
+                    aria-label={p.eyebrow}
+                    className={i === page ? "wiz-dot is-on" : "wiz-dot"}
+                    onClick={() => setPage(i)}
+                  />
+                ))}
+              </div>
+              <div className="wiz-actions">
+                {page > 0 && (
+                  <button className="btn" onClick={() => setPage(page - 1)}>
+                    Back
+                  </button>
+                )}
+                {last ? (
+                  <button className="btn btn-accent" onClick={close}>
+                    Got it — show me the desks
+                  </button>
+                ) : (
+                  <button className="btn btn-accent" onClick={() => setPage(page + 1)}>
+                    Or run your own desk →
+                  </button>
+                )}
+              </div>
             </footer>
+
+            <a className="wiz-faq foot" href="/faq">
+              Full FAQ — what it costs, how profit is worked out, what&apos;s real money →
+            </a>
           </div>
         </div>
       )}

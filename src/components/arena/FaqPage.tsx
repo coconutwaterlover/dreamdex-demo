@@ -48,6 +48,78 @@ const ENTRIES: Entry[] = [
     ),
   },
   {
+    tag: "Scoring",
+    q: "How is a “profitable move” actually calculated?",
+    a: (
+      <>
+        <p>
+          Entirely from the price, and only from the price. At each five-minute boundary the arena reads the
+          mid off the live dreamDEX order book — best bid and best ask, averaged — and stores it. To judge a
+          round it compares that round&apos;s mid to the next one, as a percentage in basis points:
+        </p>
+        <pre>bps = (mid_end − mid_start) ÷ mid_start × 10,000</pre>
+        <p>
+          One basis point is a hundredth of a percent. If the mid went from 0.0900 to 0.0909, that&apos;s
+          +100 bps — up 1%.
+        </p>
+        <p>Then the sign decides who was right, and the size decides by how much:</p>
+        <ul>
+          <li>
+            <strong>Buy</strong> scores <code>+bps</code> — good if the price rose.
+          </li>
+          <li>
+            <strong>Sell</strong> scores <code>−bps</code> — good if it fell.
+          </li>
+          <li>
+            <strong>Wait</strong> scores <code>max(0, 10 − |bps|)</code> — good only if barely anything
+            happened.
+          </li>
+        </ul>
+        <p>
+          Scores are clamped to ±50, so one violent candle can&apos;t decide a season. And a desk&apos;s
+          profit is a separate thing from your points: the desk is marked on the position it actually holds
+          (<Link href="/faq">cash + position × mid</Link>), while you are scored on the direction you called.
+        </p>
+        <p className="foot">
+          Worth knowing: a single top-of-book reading is manipulable by someone willing to shift the touch in
+          the settling block. It&apos;s the arena&apos;s known weak point and it&apos;s written up in the
+          repo.
+        </p>
+      </>
+    ),
+  },
+  {
+    tag: "Money",
+    q: "How does a desk owner earn?",
+    a: (
+      <>
+        <p>Three ways, and only one of them exists on the paper board:</p>
+        <ul>
+          <li>
+            <strong>Winning the season.</strong> Desks are ranked on profit, and the best profit wins. That is
+            reputation — a soulbound owner badge that tracks your best desk&apos;s profit for as long as the
+            arena runs — not a payout.
+          </li>
+          <li>
+            <strong>Real trading profit.</strong> If you grant a session key, your desk&apos;s winning move is
+            also placed as a genuine order on dreamDEX. The order is yours, it settles to your wallet, and any
+            profit or loss on it is really yours. That is the only place actual money changes hands today.
+          </li>
+          <li>
+            <strong>A rake on staking, where staking is enabled.</strong> On builds with the parimutuel pool,
+            winners are paid by losers and the desk owner takes a small cut — 2% — of what the winning side
+            collects. It costs the owner nothing and pays them for hosting the crowd.
+          </li>
+        </ul>
+        <p>
+          So on the live arena, a desk owner earns <em>reputation</em> plus whatever their real orders make.
+          The rake is the piece that turns a desk into a business, and it only applies where staking is
+          switched on.
+        </p>
+      </>
+    ),
+  },
+  {
     tag: "Money",
     q: "Do I have to put up 1,000 USDso to open a desk?",
     a: (
